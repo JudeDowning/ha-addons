@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+.venv/
+venv/
+.env
+
+# SQLite
+data/*.sqlite
+data/*.db
+data/*.db-journal
+data/logs/
+data/*-profile/
+famly_to_babyconnect_sync/data/*.sqlite
+famly_to_babyconnect_sync/data/*.db
+famly_to_babyconnect_sync/data/*.db-journal
+famly_to_babyconnect_sync/data/logs/
+famly_to_babyconnect_sync/data/*-profile/
+
+# Node
+/frontend/
+/node_modules/
+/frontend/node_modules/
+/frontend/dist/
+famly_to_babyconnect_sync/node_modules/
+famly_to_babyconnect_sync/frontend/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Playwright
+playwright-report/
+test-results/
+\.playwright/
+
+# VS Code / IDE
+.vscode/
+.idea/
+
+# Docker
+*.log
+
+# Local config/cache
+data/settings.json
+famly_to_babyconnect_sync/data/settings.json
+.cache/
+.pytest_cache/
