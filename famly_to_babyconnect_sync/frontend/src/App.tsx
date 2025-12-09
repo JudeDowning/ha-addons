@@ -72,6 +72,7 @@ const App: React.FC = () => {
   const [syncAllInFlight, setSyncAllInFlight] = useState(false);
   const [showMissingOnly, setShowMissingOnly] = useState(false);
   const [failedEventIds, setFailedEventIds] = useState<number[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const pollersRef = useRef<{ [key in ServiceName]?: () => void }>({});
 
   const registerSyncFailure = useCallback((ids: number[]) => {
@@ -140,6 +141,17 @@ const App: React.FC = () => {
     setFamlyEvents(famlyData);
     setBcEvents(bcData);
     await loadMissingEventIds();
+  };
+
+  const handleRefresh = async () => {
+    try {
+      setIsRefreshing(true);
+      await Promise.all([fetchStatus(), fetchEvents()]);
+    } catch (error) {
+      console.error("Failed to refresh data", error);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   useEffect(() => {
@@ -627,6 +639,16 @@ const App: React.FC = () => {
                   </select>
                   <button className="btn btn--secondary" onClick={handleScrapeAll} disabled={isSyncing}>
                     Scrape Data
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--secondary btn--refresh"
+                    onClick={handleRefresh}
+                    disabled={isSyncing || isRefreshing}
+                    aria-label="Refresh data"
+                  >
+                    <span className="btn--refresh__icon" aria-hidden="true">⟳</span>
+                    <span className="btn--refresh__label">Refresh</span>
                   </button>
                 </div>
                 <div className="controls-bar__center">
