@@ -49,3 +49,4 @@ data/settings.json
 famly_to_babyconnect_sync/data/settings.json
 .cache/
 .pytest_cache/
+*.ps1
