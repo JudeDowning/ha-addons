@@ -446,6 +446,26 @@ body {
   min-width: 200px;
 }
 
+.controls-bar__center-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.controls-bar__selection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.controls-bar__selection-count {
+  font-size: 12px;
+  color: rgba(248, 250, 252, 0.7);
+}
+
 @media (max-width: 640px) {
   :root {
     --day-header-offset: 84px;
@@ -1055,6 +1075,20 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 8px;
+}
+.pair-row__tile-wrapper {
+  width: 100%;
+}
+.pair-row__tile-wrapper--selectable {
+  cursor: pointer;
+}
+.pair-row__tile-wrapper--selectable:focus-visible {
+  outline: 2px dashed rgba(249, 115, 22, 0.9);
+  outline-offset: 4px;
+}
+.pair-row__tile-wrapper--selected .event-card:not(.event-card--placeholder) {
+  border: 2px dashed #22c55e;
+  border-radius: 18px;
 }
 .ignore-pill {
   border-radius: 999px;

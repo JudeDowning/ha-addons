@@ -16,6 +16,8 @@ interface Props {
   onToggleMissing?: () => void;
   controlsSlot?: React.ReactNode;
   failedEventIds?: number[];
+  selectedEventIds?: number[];
+  onToggleSelection?: (eventId: number, selected: boolean) => void;
 }
 
 interface PairedRow {
@@ -646,6 +648,8 @@ export const EventComparison: React.FC<Props> = ({
   onToggleMissing,
   controlsSlot,
   failedEventIds = [],
+  selectedEventIds = [],
+  onToggleSelection,
 }) => {
   const rows = useMemo(
     () => buildPairs(famlyEvents, babyEvents),
@@ -777,6 +781,10 @@ export const EventComparison: React.FC<Props> = ({
                 !!row.famly?.id && duplicateFamlyIds.has(row.famly.id);
 
               const canToggleIgnore = !!famlyEventId && !!onToggleIgnore;
+              const isSelectable =
+                !!famlyEventId && !row.baby && !famlyIgnored && !!onToggleSelection;
+              const isSelected =
+                isSelectable && famlyEventId && selectedEventIds.includes(famlyEventId);
 
               const arrowDisabled =
                 !showArrow ||
@@ -810,12 +818,36 @@ export const EventComparison: React.FC<Props> = ({
                     famlyIgnored ? " pair-row--ignored" : ""
                   }`}
                 >
-                  <EventTile
-                    event={row.famly}
-                    label="Famly"
-                    ignored={famlyIgnored}
-                    duplicate={famlyDuplicate}
-                  />
+                  <div
+                    className={`pair-row__tile-wrapper${
+                      isSelectable ? " pair-row__tile-wrapper--selectable" : ""
+                    }${isSelected ? " pair-row__tile-wrapper--selected" : ""}`}
+                    onClick={() => {
+                      if (famlyEventId && isSelectable) {
+                        onToggleSelection?.(famlyEventId, !isSelected);
+                      }
+                    }}
+                    role={isSelectable ? "button" : undefined}
+                    aria-pressed={isSelectable ? isSelected : undefined}
+                    tabIndex={isSelectable ? 0 : undefined}
+                    onKeyDown={(event) => {
+                      if (
+                        isSelectable &&
+                        famlyEventId &&
+                        (event.key === " " || event.key === "Enter")
+                      ) {
+                        event.preventDefault();
+                        onToggleSelection?.(famlyEventId, !isSelected);
+                      }
+                    }}
+                  >
+                    <EventTile
+                      event={row.famly}
+                      label="Famly"
+                      ignored={famlyIgnored}
+                      duplicate={famlyDuplicate}
+                    />
+                  </div>
                   <div className="pair-row__actions">
                     <button
                       type="button"

@@ -72,6 +72,7 @@ const App: React.FC = () => {
   const [syncAllInFlight, setSyncAllInFlight] = useState(false);
   const [showMissingOnly, setShowMissingOnly] = useState(false);
   const [failedEventIds, setFailedEventIds] = useState<number[]>([]);
+  const [selectedEventIds, setSelectedEventIds] = useState<number[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const pollersRef = useRef<{ [key in ServiceName]?: () => void }>({});
 
@@ -88,6 +89,19 @@ const App: React.FC = () => {
     if (!ids.length) return;
     setFailedEventIds((prev) => prev.filter((id) => !ids.includes(id)));
   }, []);
+
+  const toggleSelectedEntry = useCallback((eventId: number, select: boolean) => {
+    setSelectedEventIds((prev) => {
+      if (select) {
+        return prev.includes(eventId) ? prev : [...prev, eventId];
+      }
+      return prev.filter((id) => id !== eventId);
+    });
+  }, []);
+
+  const handleClearSelection = () => {
+    setSelectedEventIds([]);
+  };
 
   const fetchStatus = async () => {
     const res = await fetch(apiUrl("/api/status"));
@@ -159,6 +173,14 @@ const App: React.FC = () => {
     fetchEvents();
     loadSyncPreferences();
   }, [loadSyncPreferences]);
+
+  useEffect(() => {
+    if (!missingEventIds.length) {
+      setSelectedEventIds([]);
+      return;
+    }
+    setSelectedEventIds((prev) => prev.filter((id) => missingEventIds.includes(id)));
+  }, [missingEventIds]);
 
   const handleTestConnection = async (service: ServiceName) => {
     // For now, just ping /api/status to simulate an update.
@@ -481,6 +503,33 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSyncSelected = async () => {
+    if (!selectedEventIds.length) return;
+    const uniqueTargetIds = Array.from(new Set(selectedEventIds));
+    const label =
+      uniqueTargetIds.length === 1 ? "Syncing entry..." : "Syncing selected entries...";
+    beginSyncProgress(uniqueTargetIds.length, label);
+    setSyncAllInFlight(true);
+    try {
+      const result = await syncEventsToBabyConnect(uniqueTargetIds);
+      const syncedIds: number[] = Array.isArray(result?.synced_event_ids)
+        ? result.synced_event_ids
+        : uniqueTargetIds;
+      clearSyncFailures(syncedIds);
+      setSelectedEventIds((prev) => prev.filter((id) => !syncedIds.includes(id)));
+      await fetchEvents();
+      finishSyncProgress(syncedIds.length, "Selected entries synced");
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : "Failed to sync entries");
+      markConnectionError("baby_connect");
+      registerSyncFailure(uniqueTargetIds);
+      finishSyncProgress(0, "Sync failed");
+    } finally {
+      setSyncAllInFlight(false);
+    }
+  };
+
   const handleSyncSingleEvent = async (eventId: number) => {
     setSyncingEventId(eventId);
     beginSyncProgress(1);
@@ -529,6 +578,8 @@ const App: React.FC = () => {
   const hasScrapedData = famlyEvents.length > 0 || bcEvents.length > 0;
   const syncDisabled =
     isSyncing || syncAllInFlight || !hasScrapedData || missingCount === 0;
+  const selectionDisabled =
+    !selectedEventIds.length || isSyncing || syncAllInFlight || !hasScrapedData;
 
   const handleCredentialsSaved = async () => {
     await fetchStatus();
@@ -652,13 +703,42 @@ const App: React.FC = () => {
                   </button>
                 </div>
                 <div className="controls-bar__center">
-                  <button
-                    className={`btn btn--primary${syncDisabled ? " btn--disabled" : ""}`}
-                    onClick={handleSyncAll}
-                    disabled={syncDisabled}
-                  >
-                    {isSyncing ? "Syncing..." : "Sync All"}
-                  </button>
+                  <div className="controls-bar__center-stack">
+                    <button
+                      className={`btn btn--primary${syncDisabled ? " btn--disabled" : ""}`}
+                      onClick={handleSyncAll}
+                      disabled={syncDisabled}
+                    >
+                      {isSyncing ? "Syncing..." : "Sync All"}
+                    </button>
+                    <div className="controls-bar__selection">
+                      <button
+                        className={`btn btn--secondary${
+                          selectionDisabled ? " btn--disabled" : ""
+                        }`}
+                        onClick={handleSyncSelected}
+                        disabled={selectionDisabled}
+                      >
+                        Sync Selected
+                        {selectedEventIds.length ? ` (${selectedEventIds.length})` : ""}
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn btn--secondary${
+                          selectedEventIds.length ? "" : " btn--disabled"
+                        }`}
+                        onClick={handleClearSelection}
+                        disabled={!selectedEventIds.length}
+                      >
+                        Clear selection
+                      </button>
+                      {selectedEventIds.length > 0 && (
+                        <span className="controls-bar__selection-count">
+                          {selectedEventIds.length} selected
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
                 <div className="controls-bar__group controls-bar__group--right">
                   <div className="controls-bar__right-buttons">
@@ -673,6 +753,8 @@ const App: React.FC = () => {
                 </div>
               </div>
             }
+            selectedEventIds={selectedEventIds}
+            onToggleSelection={toggleSelectedEntry}
             famlyEvents={famlyEvents}
             babyEvents={bcEvents}
             dateFormat={dateFormat}
@@ -704,5 +786,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-
-
