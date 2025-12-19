@@ -1,5 +1,5 @@
 name: Famly to Baby Connect Sync
-version: "1.0.1"
+version: "1.0.2"
 slug: famly_to_babyconnect_sync
 description: Syncs activity entries from the Famly nursery platform into Baby Connect.
 documentation: https://github.com/JudeDowning/famly_to_babyconnect_sync#readme

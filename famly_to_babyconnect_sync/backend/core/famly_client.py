@@ -77,7 +77,7 @@ class FamlyClient:
 
             # 1. Go to login page
             logger.info("Famly scrape: navigating to login page")
-            page.goto(FAMLY_LOGIN_URL, wait_until="networkidle")
+            page.goto(FAMLY_LOGIN_URL, wait_until="domcontentloaded")
             page.wait_for_timeout(500)
 
             # 2. If login fields are visible, login; otherwise verify the dashboard before assuming existing session
@@ -85,7 +85,7 @@ class FamlyClient:
                 used_login_form = self._login_if_needed(page)
                 if not used_login_form and not self._wait_for_dashboard(page):
                     logger.info("Famly scrape: dashboard not visible; reloading to surface login form")
-                    page.goto(FAMLY_LOGIN_URL, wait_until="networkidle")
+                page.goto(FAMLY_LOGIN_URL, wait_until="domcontentloaded")
                     page.wait_for_timeout(500)
                     self._login_if_needed(page)
             else:
@@ -98,7 +98,7 @@ class FamlyClient:
 
             # 4. Wait for navigation to child's activity feed
             logger.info("Famly scrape: waiting for child activity feed to load")
-            page.wait_for_load_state("networkidle")
+            page.wait_for_load_state("domcontentloaded")
             page.wait_for_selector(CHILD_NAME_SELECTOR, timeout=10000)
             page.wait_for_selector(DAY_SELECTOR, timeout=10000)
 
