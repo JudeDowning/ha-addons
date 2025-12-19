@@ -12,7 +12,7 @@ This module contains a thin wrapper around Playwright to:
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Callable, List, Optional
 import re
 import logging
 from datetime import datetime, date, time, timedelta
@@ -44,6 +44,8 @@ CHILD_NAME_SELECTOR = "#personProfile h2.title-test-marker"
 
 logger = logging.getLogger(__name__)
 
+ProgressCallback = Callable[[str], None]
+
 
 class FamlyClient:
     def __init__(self, email: str, password: str, child_id: str | None = None) -> None:
@@ -57,7 +59,11 @@ class FamlyClient:
             return f"a[data-e2e-id='NavigationGroup-Child-{self.child_id}']"
         return None
 
-    def login_and_scrape(self, days_back: int = 0) -> List[RawFamlyEvent]:
+    def login_and_scrape(
+        self,
+        days_back: int = 0,
+        progress_callback: ProgressCallback | None = None,
+    ) -> List[RawFamlyEvent]:
         """
         Main entrypoint: log into Famly (if necessary) and return a list of
         raw scraped events.
@@ -68,6 +74,10 @@ class FamlyClient:
         entry_day_limit = max(1, days_back + 1)
         reference_date = datetime.now().date()
 
+        def _report(message: str) -> None:
+            if progress_callback:
+                progress_callback(message)
+
         with sync_playwright() as p:
             browser = p.chromium.launch_persistent_context(
                 user_data_dir=str(FAMLY_PROFILE_DIR),
@@ -76,6 +86,7 @@ class FamlyClient:
             page = browser.new_page()
 
             # 1. Go to login page
+            _report("Logging in to Famly...")
             logger.info("Famly scrape: navigating to login page")
             page.goto(FAMLY_LOGIN_URL, wait_until="domcontentloaded")
             page.wait_for_timeout(500)
@@ -95,9 +106,11 @@ class FamlyClient:
             # At this point we should be on /account/feed/me
 
             # 3. Click the child icon/link in the sidebar
+            _report("Selecting child profile...")
             self._select_child(page)
 
             # 4. Wait for navigation to child's activity feed
+            _report("Loading child activity feed...")
             logger.info("Famly scrape: waiting for child activity feed to load")
             page.wait_for_load_state("domcontentloaded")
             page.wait_for_selector(CHILD_NAME_SELECTOR, timeout=10000)
@@ -119,6 +132,7 @@ class FamlyClient:
                 pass
                 
             # 5. Scrape days and events
+            _report("Gathering Famly events...")
             logger.info("Famly scrape: collecting day blocks")
             day_blocks = page.query_selector_all(DAY_SELECTOR)
             logger.info("Famly scrape: found %d day blocks", len(day_blocks))
@@ -219,6 +233,7 @@ class FamlyClient:
                     break
             browser.close()
             logger.info("Famly scrape: finished with %d events", len(events))
+            _report(f"Collected {len(events)} Famly events")
 
         events.sort(key=lambda ev: ev.event_datetime_iso or "", reverse=True)
         limited = self._limit_events_by_entry_days(events, entry_day_limit)

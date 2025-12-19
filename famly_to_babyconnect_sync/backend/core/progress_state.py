@@ -21,6 +21,7 @@ def start_progress(service: str, total: int) -> None:
             "status": "running",
             "started_at": _now(),
             "updated_at": _now(),
+            "message": None,
         }
 
 
@@ -56,6 +57,24 @@ def fail_progress(service: str, error: str | None = None) -> None:
             data["error"] = error
         data["finished_at"] = _now()
         data["updated_at"] = data["finished_at"]
+
+
+def set_progress_total(service: str, total: int) -> None:
+    with _LOCK:
+        data = _PROGRESS.get(service)
+        if not data:
+            return
+        data["total"] = max(total, 0)
+        data["updated_at"] = _now()
+
+
+def set_progress_message(service: str, message: str) -> None:
+    with _LOCK:
+        data = _PROGRESS.get(service)
+        if not data:
+            return
+        data["message"] = message
+        data["updated_at"] = _now()
 
 
 def clear_progress(service: str) -> None:

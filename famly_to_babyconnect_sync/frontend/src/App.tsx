@@ -200,18 +200,18 @@ const App: React.FC = () => {
           if (!prev.visible) return prev;
           if (prev.mode !== "scrape") return prev;
           if (!data) return prev;
-          if (service === "famly") {
-            return {
-              ...prev,
-              famlyProcessed: data.processed ?? prev.famlyProcessed,
-              famlyTotal: data.total ?? prev.famlyTotal,
-            };
+          const updated = { ...prev };
+          if (data.message) {
+            updated.label = data.message;
           }
-          return {
-            ...prev,
-            babyProcessed: data.processed ?? prev.babyProcessed,
-            babyTotal: data.total ?? prev.babyTotal,
-          };
+          if (service === "famly") {
+            updated.famlyProcessed = data.processed ?? prev.famlyProcessed;
+            updated.famlyTotal = data.total ?? prev.famlyTotal;
+          } else {
+            updated.babyProcessed = data.processed ?? prev.babyProcessed;
+            updated.babyTotal = data.total ?? prev.babyTotal;
+          }
+          return updated;
         });
       } catch (error) {
         console.debug("Progress watch error", error);
@@ -704,6 +704,5 @@ const App: React.FC = () => {
 };
 
 export default App;
-
 
 

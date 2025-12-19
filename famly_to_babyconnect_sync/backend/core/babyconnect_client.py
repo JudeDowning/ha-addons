@@ -12,7 +12,7 @@ This module uses Playwright to:
 
 from __future__ import annotations
 
-from typing import Dict, Any, List
+from typing import Callable, Dict, Any, List
 import logging
 import re
 from datetime import datetime, timedelta, date
@@ -47,14 +47,25 @@ DATE_LEFT_SELECTOR = "#dateLeft"
 
 logger = logging.getLogger(__name__)
 
+ProgressCallback = Callable[[str], None]
+
 class BabyConnectClient:
     def __init__(self, email: str, password: str) -> None:
         self.email = email
         self.password = password
 
-    def login_and_scrape(self, days_back: int = 0, allowed_days: list[str] | None = None) -> List[RawBabyConnectEvent]:
+    def login_and_scrape(
+        self,
+        days_back: int = 0,
+        allowed_days: list[str] | None = None,
+        progress_callback: ProgressCallback | None = None,
+    ) -> List[RawBabyConnectEvent]:
         events: List[RawBabyConnectEvent] = []
         allowed_set = {day for day in (allowed_days or []) if day}
+
+        def _report(message: str) -> None:
+            if progress_callback:
+                progress_callback(message)
 
         with sync_playwright() as p:
             browser = p.chromium.launch_persistent_context(
@@ -64,6 +75,7 @@ class BabyConnectClient:
             page = browser.new_page()
 
             # 1. Login (if session not already stored)
+            _report("Logging in to Baby Connect...")
             logger.info("BabyConnect: opening home page")
             page.goto(BABYCONNECT_HOME_URL, wait_until="networkidle")
 
@@ -84,6 +96,7 @@ class BabyConnectClient:
 
             collected_days = 0
             seen_dates: set[str] = set()
+            _report("Collecting Baby Connect events...")
 
             while True:
                 status_list = self._get_status_list(page)
@@ -124,6 +137,7 @@ class BabyConnectClient:
 
             browser.close()
             logger.info("BabyConnect: scraped %d events across %d days", len(events), len(seen_dates))
+            _report(f"Collected {len(events)} Baby Connect events")
 
         return events
 
