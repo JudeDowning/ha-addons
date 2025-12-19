@@ -28,6 +28,8 @@ from .progress_state import (
     finish_progress,
     fail_progress,
     clear_progress,
+    set_progress_total,
+    set_progress_message,
 )
 
 def test_service_credentials(service_name: str) -> None:
@@ -68,11 +70,16 @@ def scrape_famly_and_store(days_back: int = 0) -> List[Event]:
         raise RuntimeError("No Famly credentials configured.")
 
     client = FamlyClient(email=cred.email, password=cred.password_encrypted)  # TODO: decrypt when encryption is added
-    raw_events: List[RawFamlyEvent] = client.login_and_scrape(days_back=days_back)
-    normalised: List[Dict[str, Any]] = [normalise_famly_event(r) for r in raw_events]
+    start_progress("famly", 0)
+    set_progress_message("famly", "Preparing Famly scrape...")
+    def _report(message: str) -> None:
+        set_progress_message("famly", message)
 
+    raw_events: List[RawFamlyEvent] = client.login_and_scrape(days_back=days_back, progress_callback=_report)
+    normalised: List[Dict[str, Any]] = [normalise_famly_event(r) for r in raw_events]
+    set_progress_total("famly", len(normalised))
+    set_progress_message("famly", "Storing Famly events...")
     stored_events: List[Event] = []
-    start_progress("famly", len(normalised))
     try:
         with get_session() as session:
             session.query(Event).filter(Event.source_system == "famly").delete()
@@ -209,15 +216,22 @@ def scrape_babyconnect_and_store(days_back: int = 0) -> List[Event]:
         effective_days = max(effective_days, diff)
 
     client = BabyConnectClient(email=cred.email, password=cred.password_encrypted)
+    start_progress("baby_connect", 0)
+    set_progress_message("baby_connect", "Preparing Baby Connect scrape...")
+    def _report(message: str) -> None:
+        set_progress_message("baby_connect", message)
+
     raw_events: List[RawBabyConnectEvent] = client.login_and_scrape(
         days_back=effective_days,
         allowed_days=allowed_dates,
+        progress_callback=_report,
     )
     normalised: List[Dict[str, Any]] = [normalise_babyconnect_event(r) for r in raw_events]
+    set_progress_total("baby_connect", len(normalised))
+    set_progress_message("baby_connect", "Storing Baby Connect events...")
 
     stored_events: List[Event] = []
     seen_fingerprints: set[str] = set()
-    start_progress("baby_connect", len(normalised))
     try:
         with get_session() as session:
             session.query(Event).filter(Event.source_system == "baby_connect").delete()

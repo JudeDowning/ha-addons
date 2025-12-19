@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.4
+- Updated reporting in UI to show actual scrape steps, similar to the logs rather than "Scraping"
+
 ## 1.0.3
 - Fixed broken code in 1.0.2
 

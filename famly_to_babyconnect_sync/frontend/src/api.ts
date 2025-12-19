@@ -170,6 +170,13 @@ export async function fetchDebugEvents(source: ServiceName): Promise<any> {
   return res.json();
 }
 
+interface ScrapeProgressSnapshot {
+  service: string;
+  total: number;
+  processed: number;
+  message?: string;
+}
+
 export async function clearScrapedEvents(): Promise<void> {
   const res = await fetch(apiUrl("/api/debug/events/clear"), { method: "POST" });
   if (!res.ok) {
@@ -178,9 +185,7 @@ export async function clearScrapedEvents(): Promise<void> {
   }
 }
 
-export async function fetchScrapeProgress(): Promise<
-  Record<string, { service: string; total: number; processed: number }>
-> {
+export async function fetchScrapeProgress(): Promise<Record<string, ScrapeProgressSnapshot>> {
   const res = await fetch(apiUrl("/api/scrape/progress"));
   if (!res.ok) {
     throw new Error("Failed to load scrape progress");
