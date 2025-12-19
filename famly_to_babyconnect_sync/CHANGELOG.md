@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.3
+- Fixed broken code in 1.0.2
+
 ## 1.0.2
 - Changed the timeout detection for Famly scraping
 
