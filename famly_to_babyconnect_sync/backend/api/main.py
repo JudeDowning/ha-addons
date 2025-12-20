@@ -12,6 +12,7 @@ from .routes_sync import router as sync_router
 from .routes_credentials import router as credentials_router
 from .routes_settings import router as settings_router
 from .routes_debug import router as debug_router
+from .routes_homeassistant import router as homeassistant_router
 
 
 configure_logging()
@@ -39,6 +40,7 @@ app.include_router(sync_router, prefix="/api")
 app.include_router(credentials_router, prefix="/api")
 app.include_router(settings_router, prefix="/api")
 app.include_router(debug_router, prefix="/api")
+app.include_router(homeassistant_router, prefix="/api")
 
 # Serve frontend (if built)
 frontend_dist = BASE_DIR / "frontend" / "dist"

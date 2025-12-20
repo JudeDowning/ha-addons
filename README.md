@@ -106,6 +106,11 @@ rest_command:
   famly_sync_missing:
     url: "http://ADDON_HOST:ADDON_PORT/api/sync/missing"
     method: POST
+
+  nursery_sync_last_day:
+    url: "http://ADDON_HOST:ADDON_PORT/api/homeassistant/run"
+    method: POST
+    timeout: 120
 ```
 
 ### Example nightly automation
@@ -117,12 +122,31 @@ automation:
       - platform: time
         at: "22:30:00"
     action:
-      - service: rest_command.famly_scrape
-      - service: rest_command.babyconnect_scrape
-      - service: rest_command.famly_sync_missing
+      - service: rest_command.nursery_sync_last_day
 ```
 
-> For Supervisor calls, include: `Authorization: Bearer ${SUPERVISOR_TOKEN}`
+> For Supervisor calls (including the `rest_command` above), include: `Authorization: Bearer ${SUPERVISOR_TOKEN}`
+
+### Example sensor for the last sync
+
+```yaml
+sensor:
+  - platform: rest
+    name: "Nursery Sync Status"
+    resource: "http://ADDON_HOST:ADDON_PORT/api/homeassistant/status"
+    scan_interval: 300
+    value_template: "{{ value_json.last_sync_at or 'unknown' }}"
+    json_attributes:
+      - sync_status
+      - sync_in_progress
+      - famly_last_scrape_at
+      - baby_connect_last_scrape_at
+      - progress
+    headers:
+      Authorization: Bearer ${SUPERVISOR_TOKEN}
+```
+
+The `status` endpoint exposes `last_sync_at`, the most recent Famly/Baby Connect scrapes, and `progress` metadata so you can surface whether a sync is running or idle inside Home Assistant.
 
 ## 🧱 Architecture Overview
 

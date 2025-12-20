@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.6
+- Added Home Assistant–friendly status (`/api/homeassistant/status`) and sync run (`/api/homeassistant/run`) endpoints so automations can monitor progress and trigger the latest-day scrape/sync.
+- Documented the new endpoints including rest_command/sensor examples for the HA addon README.
+
 ## 1.0.5
 - Added multi select functionality to allow multiple specified entries to be pushed into Baby Connect instead of just all missing or one by one
 
