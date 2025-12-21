@@ -1,0 +1,5 @@
+{
+  "sync_preferences": {
+    "include_types": ["solid", "nappy", "sleep", "message", "bottle", "medicine", "temperature", "bath"]
+  }
+}

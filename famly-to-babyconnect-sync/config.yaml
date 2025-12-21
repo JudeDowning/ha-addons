@@ -1,0 +1,23 @@
+name: Famly to Baby Connect Sync
+version: "1.0.6"
+slug: famly_to_babyconnect_sync
+description: Syncs activity entries from the Famly nursery platform into Baby Connect.
+documentation: https://github.com/JudeDowning/ha-addons/tree/main/famly-to-babyconnect-sync#readme
+url: https://github.com/JudeDowning/ha-addons
+arch:
+  - amd64
+startup: application
+boot: auto
+init: false
+homeassistant: "2023.1.0"
+ingress: true
+ingress_port: 8000
+panel_icon: mdi:baby-face-outline
+map:
+  - data:rw
+ports:
+  8000/tcp: null
+options:
+  famly_child_id: ""
+schema:
+  famly_child_id: str?
