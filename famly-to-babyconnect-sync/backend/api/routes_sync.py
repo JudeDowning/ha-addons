@@ -1,4 +1,5 @@
-import logging
+﻿import logging
+from threading import Lock
 from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
 
@@ -9,13 +10,31 @@ from ..core.sync_service import (
     create_babyconnect_entries as create_entries_service,
     get_missing_famly_event_ids,
 )
-from ..core.progress_state import get_progress_snapshot
+from ..core.progress_state import (
+    get_progress_snapshot,
+    start_progress,
+    finish_progress,
+    fail_progress,
+    clear_progress,
+    set_progress_message,
+)
 
 router = APIRouter(tags=["sync"])
 logger = logging.getLogger(__name__)
+_SYNC_LOCK = Lock()
 
 class CreateEntriesPayload(BaseModel):
     event_ids: list[int]
+
+
+def _acquire_sync_lock() -> None:
+    if not _SYNC_LOCK.acquire(blocking=False):
+        raise HTTPException(status_code=409, detail="Sync already in progress. Please wait for it to finish.")
+
+
+def _release_sync_lock() -> None:
+    if _SYNC_LOCK.locked():
+        _SYNC_LOCK.release()
 
 
 @router.get("/scrape/progress")
@@ -71,34 +90,58 @@ def sync():
 @router.post("/sync/baby_connect/entries")
 def create_babyconnect_entries(payload: CreateEntriesPayload):
     logger.info("API: creating %d baby connect entries", len(payload.event_ids))
+    _acquire_sync_lock()
+    start_progress("sync", len(payload.event_ids))
+    set_progress_message("sync", "Syncing selected entries...")
+    success = False
     try:
         result = create_entries_service(payload.event_ids)
         response = dict(result)
         response.setdefault("synced_event_ids", payload.event_ids)
+        success = True
         return response
     except Exception as exc:
         logger.exception("API: failed to create baby connect entries")
+        fail_progress("sync", str(exc))
         raise HTTPException(status_code=500, detail=str(exc))
+    finally:
+        if success:
+            finish_progress("sync")
+        clear_progress("sync")
+        _release_sync_lock()
 
 @router.post("/sync/missing")
 def sync_missing_entries():
     """
     Compute missing Famly events and create them in Baby Connect.
     """
+    _acquire_sync_lock()
     try:
         missing_ids = get_missing_famly_event_ids()
     except Exception as exc:
         logger.exception("API: failed to compute missing events")
+        _release_sync_lock()
         raise HTTPException(status_code=500, detail=str(exc))
     if not missing_ids:
+        _release_sync_lock()
         return {"status": "ok", "created": 0, "missing_event_ids": []}
+    start_progress("sync", len(missing_ids))
+    set_progress_message("sync", "Syncing missing entries...")
+    success = False
     try:
         result = create_entries_service(missing_ids)
         response = dict(result)
         response.setdefault("status", "ok")
         response["missing_event_ids"] = missing_ids
         response.setdefault("synced_event_ids", missing_ids)
+        success = True
         return response
     except Exception as exc:
         logger.exception("API: failed to sync missing entries")
+        fail_progress("sync", str(exc))
         raise HTTPException(status_code=500, detail=str(exc))
+    finally:
+        if success:
+            finish_progress("sync")
+        clear_progress("sync")
+        _release_sync_lock()

@@ -14,6 +14,8 @@ import {
   setEventIgnored,
 } from "./api";
 
+type ProgressService = ServiceName | "sync";
+
 type DateFormat = "weekday-mon-dd" | "weekday-dd-mon";
 
 type ProgressMode = "scrape" | "sync" | null;
@@ -74,7 +76,7 @@ const App: React.FC = () => {
   const [failedEventIds, setFailedEventIds] = useState<number[]>([]);
   const [selectedEventIds, setSelectedEventIds] = useState<number[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const pollersRef = useRef<{ [key in ServiceName]?: () => void }>({});
+  const pollersRef = useRef<{ [key in ProgressService]?: () => void }>({});
 
   const registerSyncFailure = useCallback((ids: number[]) => {
     if (!ids.length) return;
@@ -259,16 +261,61 @@ const App: React.FC = () => {
     return stop;
   };
 
-  const stopPollers = (service?: ServiceName) => {
+  const stopPollers = (service?: ProgressService) => {
     if (service) {
       pollersRef.current[service]?.();
       delete pollersRef.current[service];
       return;
     }
-    (Object.keys(pollersRef.current) as ServiceName[]).forEach((key) => {
+    (Object.keys(pollersRef.current) as ProgressService[]).forEach((key) => {
       pollersRef.current[key]?.();
       delete pollersRef.current[key];
     });
+  };
+
+  const startSyncWatcher = () => {
+    let stopped = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const poll = async () => {
+      if (stopped) return;
+      try {
+        const snapshot = await fetchScrapeProgress();
+        const data = snapshot?.sync;
+        setProgress((prev) => {
+          if (!prev.visible) return prev;
+          if (prev.mode !== "sync") return prev;
+          if (!data) return prev;
+          const updated = { ...prev };
+          if (data.message) {
+            updated.label = data.message;
+          }
+          updated.syncCurrent = data.processed ?? prev.syncCurrent;
+          updated.syncTotal = data.total ?? prev.syncTotal;
+          return updated;
+        });
+      } catch (error) {
+        console.debug("Progress watch error", error);
+      } finally {
+        if (!stopped) {
+          timeoutId = setTimeout(poll, 400);
+        }
+      }
+    };
+
+    const stop = () => {
+      stopped = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (pollersRef.current.sync === stop) {
+        delete pollersRef.current.sync;
+      }
+    };
+
+    poll();
+    pollersRef.current.sync = stop;
+    return stop;
   };
 
   const markConnectionError = (service: ServiceName) => {
@@ -484,6 +531,7 @@ const App: React.FC = () => {
     const targetIds = [...missingEventIds];
     beginSyncProgress(targetIds.length);
     setSyncAllInFlight(true);
+    const stopSyncWatcher = startSyncWatcher();
     try {
       const result = await syncAllMissingEvents();
       const syncedIds: number[] = Array.isArray(result?.synced_event_ids)
@@ -499,6 +547,7 @@ const App: React.FC = () => {
       registerSyncFailure(targetIds);
       finishSyncProgress(0, "Sync failed");
     } finally {
+      stopSyncWatcher?.();
       setSyncAllInFlight(false);
     }
   };
@@ -510,6 +559,7 @@ const App: React.FC = () => {
       uniqueTargetIds.length === 1 ? "Syncing entry..." : "Syncing selected entries...";
     beginSyncProgress(uniqueTargetIds.length, label);
     setSyncAllInFlight(true);
+    const stopSyncWatcher = startSyncWatcher();
     try {
       const result = await syncEventsToBabyConnect(uniqueTargetIds);
       const syncedIds: number[] = Array.isArray(result?.synced_event_ids)
@@ -526,6 +576,7 @@ const App: React.FC = () => {
       registerSyncFailure(uniqueTargetIds);
       finishSyncProgress(0, "Sync failed");
     } finally {
+      stopSyncWatcher?.();
       setSyncAllInFlight(false);
     }
   };
@@ -533,6 +584,7 @@ const App: React.FC = () => {
   const handleSyncSingleEvent = async (eventId: number) => {
     setSyncingEventId(eventId);
     beginSyncProgress(1);
+    const stopSyncWatcher = startSyncWatcher();
     try {
       const result = await syncEventsToBabyConnect([eventId]);
       const syncedIds: number[] = Array.isArray(result?.synced_event_ids)
@@ -548,6 +600,7 @@ const App: React.FC = () => {
       markConnectionError("baby_connect");
       finishSyncProgress(0, "Sync failed");
     } finally {
+      stopSyncWatcher?.();
       setSyncingEventId(null);
     }
   };

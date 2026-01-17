@@ -1,7 +1,10 @@
-# Changelog
+﻿# Changelog
+
+## 1.0.7
+- Added live sync progress updates so the UI counter increments as Baby Connect entries are written.
 
 ## 1.0.6
-- Added Home Assistant–friendly status (`/api/homeassistant/status`) and sync run (`/api/homeassistant/run`) endpoints so automations can monitor progress and trigger the latest-day scrape/sync.
+- Added Home Assistantâ€“friendly status (`/api/homeassistant/status`) and sync run (`/api/homeassistant/run`) endpoints so automations can monitor progress and trigger the latest-day scrape/sync.
 - Documented the new endpoints including rest_command/sensor examples for the HA addon README.
 
 ## 1.0.5
@@ -21,3 +24,4 @@
 
 ## 1.0.0
 - First stable and fully operational release
+

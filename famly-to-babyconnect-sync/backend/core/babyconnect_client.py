@@ -1,4 +1,4 @@
-"""
+﻿"""
 Baby Connect client (automation).
 ---------------------------------
 
@@ -21,6 +21,7 @@ from playwright.sync_api import sync_playwright, Page, TimeoutError as Playwrigh
 
 from .config import BABYCONNECT_PROFILE_DIR, HEADLESS
 from .normalisation import RawBabyConnectEvent
+from .progress_state import increment_progress, set_progress_message
 
 BABYCONNECT_LOGIN_URL = "https://app.babyconnect.com/login"
 BABYCONNECT_HOME_URL = "https://app.babyconnect.com/home2"
@@ -33,7 +34,7 @@ BC_LOGIN_BUTTON_SELECTOR = "#save"
 CHILD_NAME_SELECTOR = ".name a"
 
 
-# Today’s status list selectors
+# Todayâ€™s status list selectors
 STATUS_LIST_CONTAINER = "#status_list_container"
 STATUS_LIST_WRAP = "#status_list_wrap"
 STATUS_LIST_SELECTOR = "#status_list"
@@ -200,7 +201,8 @@ class BabyConnectClient:
 
             page.wait_for_selector("#new_entries_panel", timeout=10000)
 
-            for entry in entries:
+            total_entries = len(entries)
+            for idx, entry in enumerate(entries, start=1):
                 event_type = (entry.get("event_type") or "").lower()
                 try:
                     logger.info("BabyConnect: creating entry type=%s payload=%s", event_type, entry)
@@ -214,10 +216,15 @@ class BabyConnectClient:
                         self._create_message_entry(page, entry)
                     else:
                         logger.warning("BabyConnect: unsupported entry type %s", event_type)
+                        set_progress_message("sync", f"Skipped entry {idx}/{total_entries} (unsupported type)")
                         continue
                     any_success = True
+                    set_progress_message("sync", f"Synced entry {idx}/{total_entries}")
                 except Exception:
                     logger.exception("BabyConnect: failed to create entry %s", entry)
+                    set_progress_message("sync", f"Failed entry {idx}/{total_entries}")
+                finally:
+                    increment_progress("sync")
 
             browser.close()
 
@@ -995,3 +1002,5 @@ class BabyConnectClient:
                 add_line(title_text)
 
         return lines
+
+
