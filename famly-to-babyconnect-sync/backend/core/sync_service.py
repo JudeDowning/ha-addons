@@ -266,6 +266,11 @@ def scrape_babyconnect_and_store(days_back: int = 0) -> List[Event]:
 def _infer_diaper_type(detail_lines: Iterable[str]) -> str:
     for line in detail_lines:
         lower = line.lower()
+        compact = lower.replace(" ", "")
+        if ("wet" in lower and "bm" in lower and ("&" in lower or "+" in lower or "and" in lower)):
+            return "bm_wet"
+        if ("wet&bm" in compact or "bm&wet" in compact or "wet+bm" in compact or "bm+wet" in compact):
+            return "bm_wet"
         if "bm + wet" in lower:
             return "bm_wet"
         if "bm" in lower:

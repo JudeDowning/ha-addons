@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## 1.0.8
+- Improved diaper type mapping so Famly Wet&BM entries sync to BM + Wet in Baby Connect.
+
 ## 1.0.7
 - Added live sync progress updates so the UI counter increments as Baby Connect entries are written.
 
@@ -24,4 +27,5 @@
 
 ## 1.0.0
 - First stable and fully operational release
+
 
