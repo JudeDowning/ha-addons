@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## 1.0.9
+- Replaced the blocking progress modal with an inline status card that updates live.
+- Added a "Scrape + Sync All" button to run the combined flow from the UI.
+
+
 ## 1.0.8
 - Improved diaper type mapping so Famly Wet&BM entries sync to BM + Wet in Baby Connect.
 

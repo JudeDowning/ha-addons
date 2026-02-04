@@ -36,8 +36,8 @@ export const ProgressOverlay: React.FC<Props> = ({ progress }) => {
     : 0;
 
   return (
-    <div className="progress-overlay">
-      <div className="progress-panel">
+    <div className="progress-inline" role="status" aria-live="polite">
+      <div className="progress-panel progress-panel--inline">
         <h3>{isSyncMode ? "Syncing entries" : "Scraping data"}</h3>
         <p className="progress-panel__label">{progress.label}</p>
         <div className="progress-bar">
@@ -58,19 +58,23 @@ export const ProgressOverlay: React.FC<Props> = ({ progress }) => {
           </div>
         ) : (
           <div className="progress-stats">
-          <div>
-            <p>Famly entries</p>
-            <strong>{progress.famlyProcessed}</strong>
-            {progress.famlyTotal ? <span> / {progress.famlyTotal}</span> : null}
+            <div>
+              <p>Famly entries</p>
+              <strong>{progress.famlyProcessed}</strong>
+              {progress.famlyTotal ? (
+                <span> / {progress.famlyTotal}</span>
+              ) : null}
+            </div>
+            <div>
+              <p>Baby Connect entries</p>
+              <strong>{progress.babyProcessed}</strong>
+              {progress.babyTotal ? (
+                <span> / {progress.babyTotal}</span>
+              ) : null}
+            </div>
           </div>
-          <div>
-            <p>Baby Connect entries</p>
-            <strong>{progress.babyProcessed}</strong>
-            {progress.babyTotal ? <span> / {progress.babyTotal}</span> : null}
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
-  </div>
   );
 };

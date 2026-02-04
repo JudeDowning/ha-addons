@@ -125,6 +125,18 @@ export async function syncAllMissingEvents(): Promise<any> {
   return res.json();
 }
 
+export async function runScrapeAndSyncAll(daysBack: number): Promise<any> {
+  const res = await fetch(
+    apiUrl(`/api/homeassistant/run?days_back=${encodeURIComponent(daysBack)}`),
+    { method: "POST" },
+  );
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.detail || "Failed to scrape and sync");
+  }
+  return res.json();
+}
+
 export async function fetchSyncPreferences(): Promise<SyncPreferences> {
   const res = await fetch(apiUrl("/api/settings/sync-preferences"));
   if (!res.ok) {
