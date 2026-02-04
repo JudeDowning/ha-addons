@@ -12,6 +12,7 @@ import {
   apiUrl,
   fetchScrapeProgress,
   setEventIgnored,
+  runScrapeAndSyncAll,
 } from "./api";
 
 type ProgressService = ServiceName | "sync";
@@ -318,6 +319,59 @@ const App: React.FC = () => {
     return stop;
   };
 
+  const startScrapeAndSyncWatcher = () => {
+    let stopped = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const poll = async () => {
+      if (stopped) return;
+      try {
+        const snapshot = await fetchScrapeProgress();
+        const famlyData = snapshot?.famly;
+        const syncData = snapshot?.sync;
+
+        setProgress((prev) => {
+          if (!prev.visible) return prev;
+          const updated = { ...prev };
+          if (famlyData) {
+            if (famlyData.message) {
+              updated.label = famlyData.message;
+            }
+            updated.famlyProcessed =
+              famlyData.processed ?? prev.famlyProcessed;
+            updated.famlyTotal = famlyData.total ?? prev.famlyTotal;
+          }
+          if (syncData) {
+            updated.mode = "sync";
+            if (syncData.message) {
+              updated.label = syncData.message;
+            }
+            updated.syncCurrent =
+              syncData.processed ?? prev.syncCurrent;
+            updated.syncTotal = syncData.total ?? prev.syncTotal;
+          }
+          return updated;
+        });
+      } catch (error) {
+        console.debug("Progress watch error", error);
+      } finally {
+        if (!stopped) {
+          timeoutId = setTimeout(poll, 400);
+        }
+      }
+    };
+
+    const stop = () => {
+      stopped = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+
+    poll();
+    return stop;
+  };
+
   const markConnectionError = (service: ServiceName) => {
     if (service === "famly") {
       setFamlyStatus((prev) => ({ ...prev, status: "error" }));
@@ -552,6 +606,54 @@ const App: React.FC = () => {
     }
   };
 
+  const handleScrapeAndSyncAll = async () => {
+    stopPollers();
+    setIsSyncing(true);
+    setSyncAllInFlight(true);
+    setProgress({
+      mode: "scrape",
+      visible: true,
+      label: "Scraping Famly...",
+      currentStep: 0,
+      totalSteps: 1,
+      famlyProcessed: 0,
+      famlyTotal: 0,
+      babyProcessed: 0,
+      babyTotal: 0,
+      syncCurrent: 0,
+      syncTotal: 0,
+    });
+
+    const stopWatcher = startScrapeAndSyncWatcher();
+
+    try {
+      await runScrapeAndSyncAll(scrapeDaysBack);
+      await fetchEvents();
+      await fetchStatus();
+      await loadMissingEventIds();
+      setProgress((prev) => ({ ...prev, label: "Sync complete" }));
+    } catch (err) {
+      console.error(err);
+      alert(
+        err instanceof Error ? err.message : "Failed to scrape and sync",
+      );
+      markConnectionError("famly");
+      markConnectionError("baby_connect");
+      setProgress((prev) => ({ ...prev, label: "Sync failed" }));
+    } finally {
+      stopWatcher?.();
+      setIsSyncing(false);
+      setSyncAllInFlight(false);
+      setTimeout(() => {
+        setProgress((prev) => ({
+          ...prev,
+          mode: null,
+          visible: false,
+        }));
+      }, 600);
+    }
+  };
+
   const handleSyncSelected = async () => {
     if (!selectedEventIds.length) return;
     const uniqueTargetIds = Array.from(new Set(selectedEventIds));
@@ -727,6 +829,7 @@ const App: React.FC = () => {
               </span>
             </div>
           </div>
+          <ProgressOverlay progress={progress} />
           <EventComparison
             controlsSlot={
               <div className="controls-bar">
@@ -743,6 +846,13 @@ const App: React.FC = () => {
                   </select>
                   <button className="btn btn--secondary" onClick={handleScrapeAll} disabled={isSyncing}>
                     Scrape Data
+                  </button>
+                  <button
+                    className="btn btn--secondary"
+                    onClick={handleScrapeAndSyncAll}
+                    disabled={isSyncing || syncAllInFlight}
+                  >
+                    Scrape + Sync All
                   </button>
                   <button
                     type="button"
@@ -832,7 +942,6 @@ const App: React.FC = () => {
         dateFormat={dateFormat}
         onChangeDateFormat={setDateFormat}
       />
-      <ProgressOverlay progress={progress} />
       <SyncToast mode={syncAllInFlight ? "bulk" : syncingEventId ? "single" : null} />
     </div>
   );

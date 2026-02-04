@@ -244,6 +244,10 @@ body {
   z-index: 50;
 }
 
+.progress-inline {
+  margin: 16px 0 20px;
+}
+
 .progress-panel {
   width: min(320px, 90vw);
   border-radius: 20px;
@@ -251,6 +255,12 @@ body {
   background: rgba(15, 23, 42, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 20px 60px rgba(15, 23, 42, 0.6);
+}
+
+.progress-panel--inline {
+  width: 100%;
+  background: rgba(11, 18, 36, 0.85);
+  box-shadow: 0 10px 28px rgba(2, 6, 23, 0.45);
 }
 
 .progress-panel h3 {
