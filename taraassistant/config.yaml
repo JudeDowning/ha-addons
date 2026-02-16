@@ -1,0 +1,24 @@
+name: "Tara Assistant"
+slug: "taraassistant"
+version: "0.1.0"
+description: "Tara Assistant packaged as a Home Assistant add-on wrapper"
+url: https://github.com/TaraHome/taraassistant-public
+documentation: https://github.com/TaraHome/taraassistant-public#readme
+arch:
+  - amd64
+  - aarch64
+  - armv7
+image: "ghcr.io/judedowning/taraassistant:v0.1.0"
+ingress: true
+ingress_port: 8000
+panel_icon: mdi:robot
+map:
+  - data:rw
+options:
+  home_assistant_url: "http://supervisor/core"
+  home_assistant_token: ""
+  log_level: "info"
+schema:
+  home_assistant_url: str?
+  home_assistant_token: str
+  log_level: list(trace|debug|info|warning|error)?
