@@ -47,6 +47,8 @@ test-results/
 # Local config/cache
 data/settings.json
 famly_to_babyconnect_sync/data/settings.json
+data/event_mapping.json
+data/
 .cache/
 .pytest_cache/
 *.ps1
