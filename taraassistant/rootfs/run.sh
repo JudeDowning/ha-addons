@@ -3,6 +3,16 @@ set -eu
 
 OPTIONS_FILE="/data/options.json"
 
+read_s6_env_file() {
+  key="$1"
+  path="/run/s6/container_environment/$key"
+  if [ -f "$path" ]; then
+    cat "$path"
+  else
+    printf ""
+  fi
+}
+
 read_option() {
   key="$1"
   python3 - "$OPTIONS_FILE" "$key" <<'PY'
@@ -52,6 +62,26 @@ if [ -z "${HOME_ASSISTANT_TOKEN:-}" ] && [ -n "${SUPERVISOR_TOKEN:-}" ]; then
   export HOME_ASSISTANT_TOKEN="$SUPERVISOR_TOKEN"
 fi
 
+# Older HA environments can expose HASSIO_TOKEN instead.
+if [ -z "${HOME_ASSISTANT_TOKEN:-}" ] && [ -n "${HASSIO_TOKEN:-}" ]; then
+  export HOME_ASSISTANT_TOKEN="$HASSIO_TOKEN"
+fi
+
+# Some images expose env only via s6 env files.
+if [ -z "${HOME_ASSISTANT_TOKEN:-}" ]; then
+  s6_supervisor_token="$(read_s6_env_file SUPERVISOR_TOKEN)"
+  if [ -n "$s6_supervisor_token" ]; then
+    export HOME_ASSISTANT_TOKEN="$s6_supervisor_token"
+  fi
+fi
+
+if [ -z "${HOME_ASSISTANT_TOKEN:-}" ]; then
+  s6_hassio_token="$(read_s6_env_file HASSIO_TOKEN)"
+  if [ -n "$s6_hassio_token" ]; then
+    export HOME_ASSISTANT_TOKEN="$s6_hassio_token"
+  fi
+fi
+
 # Keep compatibility with apps expecting HA_TOKEN.
 if [ -z "${HA_TOKEN:-}" ] && [ -n "${HOME_ASSISTANT_TOKEN:-}" ]; then
   export HA_TOKEN="$HOME_ASSISTANT_TOKEN"
@@ -60,6 +90,10 @@ fi
 # Provide a default core API URL if none was set.
 if [ -z "${HOME_ASSISTANT_URL:-}" ]; then
   export HOME_ASSISTANT_URL="http://supervisor/core"
+fi
+
+if [ -z "${HOME_ASSISTANT_TOKEN:-}" ]; then
+  echo "ERROR: No Home Assistant token available from add-on options or supervisor env." >&2
 fi
 
 if [ "$#" -eq 0 ]; then
