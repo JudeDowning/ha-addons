@@ -39,6 +39,20 @@ print(str(value))
 PY
 }
 
+select_data_dir() {
+  preferred="/data"
+  fallback="/tmp/tara-data"
+
+  if mkdir -p "$preferred" 2>/dev/null && touch "$preferred/.tara_write_test" 2>/dev/null; then
+    rm -f "$preferred/.tara_write_test" 2>/dev/null || true
+    printf "%s" "$preferred"
+    return
+  fi
+
+  mkdir -p "$fallback"
+  printf "%s" "$fallback"
+}
+
 if [ -f "$OPTIONS_FILE" ]; then
   opt_token="$(read_option home_assistant_token)"
   opt_url="$(read_option home_assistant_url)"
@@ -56,6 +70,9 @@ if [ -f "$OPTIONS_FILE" ]; then
     export LOG_LEVEL="$opt_log_level"
   fi
 fi
+
+TARA_DATA_DIR="$(select_data_dir)"
+export TARA_DATA_DIR
 
 # If no manual token is configured, fallback to HA's internal supervisor token.
 if [ -z "${HOME_ASSISTANT_TOKEN:-}" ] && [ -n "${SUPERVISOR_TOKEN:-}" ]; then
