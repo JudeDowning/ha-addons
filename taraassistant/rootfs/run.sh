@@ -1,4 +1,4 @@
-#!/usr/bin/with-contenv sh
+#!/bin/sh
 set -eu
 
 OPTIONS_FILE="/data/options.json"

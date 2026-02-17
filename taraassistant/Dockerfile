@@ -1,7 +1,6 @@
 ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
-COPY rootfs/run.sh /run.sh
-RUN chmod a+x /run.sh
+COPY --chmod=755 rootfs/run.sh /run.sh
 
 ENTRYPOINT ["/run.sh"]
