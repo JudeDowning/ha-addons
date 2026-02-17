@@ -1,6 +1,6 @@
 name: "Tara Assistant"
 slug: "taraassistant"
-version: "0.1.5"
+version: "0.1.6"
 description: "Tara Assistant packaged as a Home Assistant add-on wrapper"
 url: https://github.com/TaraHome/taraassistant-public
 documentation: https://github.com/TaraHome/taraassistant-public#readme
