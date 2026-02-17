@@ -1,6 +1,6 @@
 name: "Tara Assistant"
 slug: "taraassistant"
-version: "0.1.4"
+version: "0.1.5"
 description: "Tara Assistant packaged as a Home Assistant add-on wrapper"
 url: https://github.com/TaraHome/taraassistant-public
 documentation: https://github.com/TaraHome/taraassistant-public#readme
@@ -16,12 +16,14 @@ homeassistant: "2023.1.0"
 homeassistant_api: true
 hassio_api: true
 
-ingress: true
-ingress_port: 8000
+ingress: false
+webui: "http://[HOST]:[PORT:8000]"
 panel_icon: mdi:robot
 
 map:
   - data:rw
+ports:
+  8000/tcp: 8000
 
 options:
   home_assistant_url: "http://supervisor/core"
