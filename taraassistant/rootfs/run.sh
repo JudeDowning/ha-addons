@@ -47,6 +47,21 @@ if [ -f "$OPTIONS_FILE" ]; then
   fi
 fi
 
+# If no manual token is configured, fallback to HA's internal supervisor token.
+if [ -z "${HOME_ASSISTANT_TOKEN:-}" ] && [ -n "${SUPERVISOR_TOKEN:-}" ]; then
+  export HOME_ASSISTANT_TOKEN="$SUPERVISOR_TOKEN"
+fi
+
+# Keep compatibility with apps expecting HA_TOKEN.
+if [ -z "${HA_TOKEN:-}" ] && [ -n "${HOME_ASSISTANT_TOKEN:-}" ]; then
+  export HA_TOKEN="$HOME_ASSISTANT_TOKEN"
+fi
+
+# Provide a default core API URL if none was set.
+if [ -z "${HOME_ASSISTANT_URL:-}" ]; then
+  export HOME_ASSISTANT_URL="http://supervisor/core"
+fi
+
 if [ "$#" -eq 0 ]; then
   exec uvicorn app.main:app --host 0.0.0.0 --port 8000
 fi
