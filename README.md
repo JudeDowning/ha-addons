@@ -5,7 +5,6 @@ This repository is the umbrella for my Home Assistant add-ons. Each add-on gets 
 ## Add-ons
 
 - `famly-to-babyconnect-sync/` - Famly to Baby Connect Sync add-on (Home Assistant + standalone Docker). See [its README](famly-to-babyconnect-sync/README.md).
-- `taraassistant/` - Tara Assistant Home Assistant add-on wrapper. See [its README](taraassistant/README.md).
 
 ## Development
 
