@@ -1,4 +1,8 @@
-﻿# Changelog
+# Changelog
+
+## 1.0.10
+- Fixed a Famly scrape crash caused by duplicate event fingerprints in the same run (UNIQUE constraint failed: events.source_system, events.fingerprint).
+- Added in-run deduplication for Famly events before database insert to keep scrape runs idempotent.
 
 ## 1.0.9
 - Replaced the blocking progress modal with an inline status card that updates live.
@@ -12,7 +16,7 @@
 - Added live sync progress updates so the UI counter increments as Baby Connect entries are written.
 
 ## 1.0.6
-- Added Home Assistantâ€“friendly status (`/api/homeassistant/status`) and sync run (`/api/homeassistant/run`) endpoints so automations can monitor progress and trigger the latest-day scrape/sync.
+- Added Home Assistant–friendly status (`/api/homeassistant/status`) and sync run (`/api/homeassistant/run`) endpoints so automations can monitor progress and trigger the latest-day scrape/sync.
 - Documented the new endpoints including rest_command/sensor examples for the HA addon README.
 
 ## 1.0.5
@@ -32,5 +36,6 @@
 
 ## 1.0.0
 - First stable and fully operational release
+
 
 
