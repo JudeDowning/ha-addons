@@ -80,11 +80,16 @@ def scrape_famly_and_store(days_back: int = 0) -> List[Event]:
     set_progress_total("famly", len(normalised))
     set_progress_message("famly", "Storing Famly events...")
     stored_events: List[Event] = []
+    seen_fingerprints: set[str] = set()
     try:
         with get_session() as session:
             session.query(Event).filter(Event.source_system == "famly").delete()
             session.flush()
             for ev in normalised:
+                fp = ev.get("fingerprint")
+                if fp in seen_fingerprints:
+                    continue
+                seen_fingerprints.add(fp)
                 new_ev = Event(**ev)
                 session.add(new_ev)
                 session.flush()  # assign id
