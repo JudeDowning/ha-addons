@@ -68,3 +68,24 @@ class IgnoredEvent(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     fingerprint: Mapped[str] = mapped_column(String(128), unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class SyncClaim(Base):
+    """
+    Tracks Famly fingerprints that are in-flight or already synced to Baby Connect.
+    """
+    __tablename__ = "sync_claims"
+    __table_args__ = (
+        UniqueConstraint("source_system", "target_system", "fingerprint", name="uq_sync_claim_source_target_fingerprint"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source_system: Mapped[str] = mapped_column(String(50), index=True)
+    target_system: Mapped[str] = mapped_column(String(50), index=True)
+    fingerprint: Mapped[str] = mapped_column(String(128), index=True)
+    status: Mapped[str] = mapped_column(String(50), default="pending", index=True)
+    claimed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    synced_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=1)

@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, date
 from playwright.sync_api import sync_playwright, Page, TimeoutError as PlaywrightTimeoutError
 
 from .config import BABYCONNECT_PROFILE_DIR, HEADLESS
-from .normalisation import RawBabyConnectEvent
+from .normalisation import RawBabyConnectEvent, normalise_babyconnect_event
 from .progress_state import increment_progress, set_progress_message
 
 BABYCONNECT_LOGIN_URL = "https://app.babyconnect.com/login"
@@ -165,7 +165,7 @@ class BabyConnectClient:
             browser.close()
             logger.info("BabyConnect: login verification successful")
 
-    def create_entries(self, entries: List[Dict[str, Any]]) -> None:
+    def create_entries(self, entries: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Create new entries inside Baby Connect based on the provided list.
 
@@ -174,11 +174,12 @@ class BabyConnectClient:
         """
         if not entries:
             logger.info("BabyConnect: no entries to create")
-            return
+            return {"status": "ok", "created": 0, "created_fingerprints": [], "failed_fingerprints": []}
 
         logger.info("BabyConnect: creating %d entries", len(entries))
-
-        any_success = False
+        created_fingerprints: List[str] = []
+        failed_fingerprints: List[str] = []
+        pending_verification: List[Dict[str, Any]] = []
 
         with sync_playwright() as p:
             browser = p.chromium.launch_persistent_context(
@@ -204,6 +205,7 @@ class BabyConnectClient:
             total_entries = len(entries)
             for idx, entry in enumerate(entries, start=1):
                 event_type = (entry.get("event_type") or "").lower()
+                fingerprint = entry.get("fingerprint")
                 try:
                     logger.info("BabyConnect: creating entry type=%s payload=%s", event_type, entry)
                     if event_type in {"nappy", "diaper"}:
@@ -217,29 +219,193 @@ class BabyConnectClient:
                     else:
                         logger.warning("BabyConnect: unsupported entry type %s", event_type)
                         set_progress_message("sync", f"Skipped entry {idx}/{total_entries} (unsupported type)")
+                        if fingerprint:
+                            failed_fingerprints.append(fingerprint)
                         continue
-                    any_success = True
+                    pending_verification.append(entry)
                     set_progress_message("sync", f"Synced entry {idx}/{total_entries}")
                 except Exception:
                     logger.exception("BabyConnect: failed to create entry %s", entry)
                     set_progress_message("sync", f"Failed entry {idx}/{total_entries}")
+                    if fingerprint:
+                        failed_fingerprints.append(fingerprint)
                 finally:
                     increment_progress("sync")
 
             browser.close()
 
-        if any_success:
-            try:
-                recent_days = _recent_famly_dates(30)
-                refresh_days_back = max(0, len(recent_days) - 1)
-                refreshed = scrape_babyconnect_and_store(days_back=refresh_days_back)
-                refreshed_count = len(refreshed)
-            except Exception:
-                refreshed_count = 0
-        else:
-            refreshed_count = 0
+        verified_fingerprints, unverified_fingerprints = self._verify_created_entries(pending_verification)
+        created_fingerprints.extend(sorted(verified_fingerprints))
+        failed_fingerprints.extend(sorted(unverified_fingerprints))
 
-        return {"status": "ok", "created": len(entries) if any_success else 0, "refreshed": refreshed_count}
+        return {
+            "status": "ok",
+            "created": len(created_fingerprints),
+            "created_fingerprints": list(dict.fromkeys(created_fingerprints)),
+            "failed_fingerprints": list(dict.fromkeys(failed_fingerprints)),
+        }
+
+    def _verify_created_entries(self, entries: List[Dict[str, Any]]) -> tuple[set[str], set[str]]:
+        fingerprints = {
+            entry.get("fingerprint")
+            for entry in entries
+            if isinstance(entry.get("fingerprint"), str) and entry.get("fingerprint").strip()
+        }
+        if not entries or not fingerprints:
+            return set(), set()
+
+        allowed_days = sorted({
+            day_iso
+            for day_iso in (self._entry_day_iso(entry) for entry in entries)
+            if day_iso
+        })
+        if not allowed_days:
+            return set(), fingerprints
+
+        today = datetime.now().date()
+        days_back = max(
+            (
+                max((today - date.fromisoformat(day_iso)).days, 0)
+                for day_iso in allowed_days
+            ),
+            default=0,
+        )
+        try:
+            scraped_events = self.login_and_scrape(days_back=days_back, allowed_days=allowed_days)
+        except Exception:
+            logger.exception("BabyConnect: verification scrape failed")
+            return set(), fingerprints
+
+        scraped_pairs = [
+            (raw_event, normalise_babyconnect_event(raw_event))
+            for raw_event in scraped_events
+        ]
+        verified: set[str] = set()
+        for entry in entries:
+            fingerprint = entry.get("fingerprint")
+            if not isinstance(fingerprint, str) or not fingerprint.strip() or fingerprint in verified:
+                continue
+            for raw_event, normalized in scraped_pairs:
+                if self._entry_matches_scraped_event(entry, raw_event, normalized):
+                    verified.add(fingerprint)
+                    break
+        return verified, fingerprints - verified
+
+    def _entry_matches_scraped_event(
+        self,
+        entry: Dict[str, Any],
+        raw_event: RawBabyConnectEvent,
+        normalized_event: Dict[str, Any],
+    ) -> bool:
+        fingerprint = entry.get("fingerprint")
+        if fingerprint and normalized_event.get("fingerprint") == fingerprint:
+            return True
+
+        target_day = self._entry_day_iso(entry)
+        if target_day and raw_event.raw_data.get("day_date_iso") != target_day:
+            return False
+
+        if self._canonical_event_type(entry.get("event_type")) != self._canonical_event_type(raw_event.event_type):
+            return False
+
+        target_start = self._entry_datetime(entry, "start_time_utc", "start_time")
+        scraped_start = normalized_event.get("start_time_utc")
+        if target_start and isinstance(scraped_start, datetime):
+            if target_start.replace(second=0, microsecond=0) != scraped_start.replace(second=0, microsecond=0):
+                return False
+
+        target_end = self._entry_datetime(entry, "end_time_utc", "end_time")
+        scraped_end = normalized_event.get("end_time_utc")
+        if target_end and isinstance(scraped_end, datetime):
+            if target_end.replace(second=0, microsecond=0) != scraped_end.replace(second=0, microsecond=0):
+                return False
+
+        expected_tokens = self._verification_tokens(entry)
+        if not expected_tokens:
+            return True
+
+        haystack = " | ".join(
+            [
+                raw_event.raw_text or "",
+                raw_event.raw_data.get("note") or "",
+                " | ".join(raw_event.raw_data.get("detail_lines") or []),
+            ]
+        ).lower()
+        if not haystack:
+            return False
+
+        significant_tokens = [token for token in expected_tokens if token and token.strip() and token.strip().lower() != "[sync]"]
+        if significant_tokens:
+            return any(token.lower() in haystack for token in significant_tokens)
+        return "[sync]" in haystack
+
+    def _canonical_event_type(self, value: str | None) -> str:
+        base = (value or "").strip().lower()
+        if base in {"meal", "meals", "food"}:
+            return "solid"
+        if base in {"diaper"}:
+            return "nappy"
+        if base in {"note"}:
+            return "message"
+        return base
+
+    def _entry_day_iso(self, entry: Dict[str, Any]) -> str | None:
+        raw_data = self._entry_raw_data(entry)
+        if raw_data.get("day_date_iso"):
+            return raw_data.get("day_date_iso")
+        parsed = self._entry_datetime(entry, "start_time_utc", "start_time")
+        return parsed.date().isoformat() if parsed else None
+
+    def _entry_datetime(self, entry: Dict[str, Any], *keys: str) -> datetime | None:
+        for key in keys:
+            candidate = entry.get(key)
+            if not candidate or not isinstance(candidate, str):
+                continue
+            cleaned = candidate.replace("Z", "+00:00")
+            try:
+                return datetime.fromisoformat(cleaned)
+            except ValueError:
+                continue
+        return None
+
+    def _verification_tokens(self, entry: Dict[str, Any]) -> List[str]:
+        event_type = self._canonical_event_type(entry.get("event_type"))
+        tokens: List[str] = []
+        if event_type == "message":
+            message = (
+                entry.get("message")
+                or entry.get("note")
+                or self._note_body_from_entry(entry)
+                or entry.get("summary")
+                or entry.get("raw_text")
+            )
+            if message:
+                tokens.extend([self._append_sync_marker(message), message])
+        else:
+            note_body = self._note_body_from_entry(entry)
+            if note_body:
+                tokens.append(self._append_sync_marker(note_body))
+                tokens.extend(part.strip() for part in note_body.split("|"))
+            detail_lines = self._detail_payload_lines(entry)
+            tokens.extend(detail_lines)
+            if event_type == "nappy":
+                diaper_type = entry.get("diaper_type")
+                if diaper_type:
+                    tokens.append(str(diaper_type))
+        cleaned: List[str] = []
+        seen: set[str] = set()
+        for token in tokens:
+            if not token:
+                continue
+            normalized = re.sub(r"\s+", " ", str(token)).strip()
+            if not normalized:
+                continue
+            lowered = normalized.lower()
+            if lowered in seen:
+                continue
+            seen.add(lowered)
+            cleaned.append(normalized)
+        return cleaned
 
     def _wait_for_overlay_clear(self, page: Page, timeout: int = 5000) -> None:
         """

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.11
+- Added persistent sync claims and shared sync locking to reduce duplicate Baby Connect posts across overlapping or repeated sync attempts.
+- Changed Baby Connect write confirmation to rescrape the feed and only treat entries as synced once they are visible on the page.
+- Fixed the Famly scraper after a site markup change by updating event extraction and child-profile navigation selectors.
+
 ## 1.0.10
 - Fixed a Famly scrape crash caused by duplicate event fingerprints in the same run (UNIQUE constraint failed: events.source_system, events.fingerprint).
 - Added in-run deduplication for Famly events before database insert to keep scrape runs idempotent.
