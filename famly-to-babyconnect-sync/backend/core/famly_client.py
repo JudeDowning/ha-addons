@@ -36,6 +36,7 @@ EVENT_SELECTOR = "div.Event"
 EVENT_CONTENT_SELECTOR = "[data-e2e-class='event-content']"
 EVENT_TITLE_SELECTOR = "[data-e2e-class='event-title']"
 EVENT_DETAIL_LINES_SELECTOR = "small"
+EVENT_TITLE_FALLBACK_SELECTOR = "p"
 
 # Child selection
 GENERIC_CHILD_LINK_SELECTOR = "a[data-e2e-id^='NavigationGroup-Child-']"
@@ -56,7 +57,7 @@ class FamlyClient:
     @property
     def child_link_selector(self) -> str | None:
         if self.child_id:
-            return f"a[data-e2e-id='NavigationGroup-Child-{self.child_id}']"
+            return f"a[href*='account/childProfile/{self.child_id}']"
         return None
 
     def login_and_scrape(
@@ -163,11 +164,11 @@ class FamlyClient:
                     logger.info("Famly scrape: reached entry day limit (%d), stopping", entry_day_limit)
                     break
                 for ev_block in event_blocks:
-                    content = ev_block.query_selector(EVENT_CONTENT_SELECTOR)
+                    content = self._resolve_event_content(ev_block)
                     if not content:
                         continue
 
-                    title_el = content.query_selector(EVENT_TITLE_SELECTOR)
+                    title_el = self._resolve_event_title(content)
                     if not title_el:
                         continue
 
@@ -317,6 +318,7 @@ class FamlyClient:
         selectors_to_try = []
         if self.child_link_selector:
             selectors_to_try.append(self.child_link_selector)
+        selectors_to_try.append(PROFILE_CHILD_LINK_SELECTOR)
         selectors_to_try.append(GENERIC_CHILD_LINK_SELECTOR)
         last_error = None
         for selector in selectors_to_try:
@@ -378,6 +380,20 @@ class FamlyClient:
 
         return ""
 
+    def _resolve_event_content(self, event_block):
+        content = event_block.query_selector(EVENT_CONTENT_SELECTOR)
+        if content:
+            return content
+        if self._resolve_event_title(event_block):
+            return event_block
+        return None
+
+    def _resolve_event_title(self, content):
+        title_el = content.query_selector(EVENT_TITLE_SELECTOR)
+        if title_el:
+            return title_el
+        return content.query_selector(EVENT_TITLE_FALLBACK_SELECTOR)
+
     def _extract_detail_lines(self, content) -> List[str]:
         detail_els = content.query_selector_all(EVENT_DETAIL_LINES_SELECTOR)
         lines: List[str] = []
@@ -385,6 +401,11 @@ class FamlyClient:
         for el in detail_els:
             if not el:
                 continue
+            try:
+                if el.query_selector(EVENT_DETAIL_LINES_SELECTOR):
+                    continue
+            except Exception:
+                pass
             text = el.inner_text().strip()
             if not text:
                 continue

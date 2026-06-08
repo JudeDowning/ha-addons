@@ -12,6 +12,7 @@ from ..core.sync_service import (
     get_missing_famly_event_ids,
     scrape_famly_and_store,
 )
+from .sync_lock import acquire_sync_lock, release_sync_lock
 
 router = APIRouter(tags=["homeassistant"])
 logger = logging.getLogger(__name__)
@@ -68,33 +69,37 @@ def homeassistant_run(
     Run a trimmed Famly scrape + sync process for Home Assistant automations.
     """
     logger.info("Home Assistant sync run requested (days_back=%s)", days_back)
+    acquire_sync_lock()
     try:
-        events = scrape_famly_and_store(days_back=days_back)
-    except Exception as exc:
-        logger.exception("Home Assistant run failed during Famly scrape")
-        raise HTTPException(status_code=500, detail=f"Famly scrape failed: {exc}")
-
-    try:
-        missing_ids = get_missing_famly_event_ids()
-    except Exception as exc:
-        logger.exception("Home Assistant run failed while determining missing events")
-        raise HTTPException(status_code=500, detail=f"Failed to determine missing events: {exc}")
-
-    response: dict[str, Any] = {
-        "scraped_count": len(events),
-        "days_back": days_back,
-        "missing_event_ids": missing_ids,
-        "synced_event_ids": [],
-        "status": "ok",
-        "created": 0,
-    }
-
-    if missing_ids:
         try:
-            result = create_entries_service(missing_ids)
+            events = scrape_famly_and_store(days_back=days_back)
         except Exception as exc:
-            logger.exception("Home Assistant run failed while syncing missing events")
-            raise HTTPException(status_code=500, detail=f"Syncing missing events failed: {exc}")
-        response.update(result)
-        response.setdefault("synced_event_ids", missing_ids)
-    return response
+            logger.exception("Home Assistant run failed during Famly scrape")
+            raise HTTPException(status_code=500, detail=f"Famly scrape failed: {exc}")
+
+        try:
+            missing_ids = get_missing_famly_event_ids()
+        except Exception as exc:
+            logger.exception("Home Assistant run failed while determining missing events")
+            raise HTTPException(status_code=500, detail=f"Failed to determine missing events: {exc}")
+
+        response: dict[str, Any] = {
+            "scraped_count": len(events),
+            "days_back": days_back,
+            "missing_event_ids": missing_ids,
+            "synced_event_ids": [],
+            "status": "ok",
+            "created": 0,
+        }
+
+        if missing_ids:
+            try:
+                result = create_entries_service(missing_ids)
+            except Exception as exc:
+                logger.exception("Home Assistant run failed while syncing missing events")
+                raise HTTPException(status_code=500, detail=f"Syncing missing events failed: {exc}")
+            response.update(result)
+            response.setdefault("synced_event_ids", missing_ids)
+        return response
+    finally:
+        release_sync_lock()
