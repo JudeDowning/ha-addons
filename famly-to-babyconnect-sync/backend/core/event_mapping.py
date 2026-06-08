@@ -13,6 +13,7 @@ DEFAULT_EVENT_MAPPING: Dict[str, str] = {
     "sleep": "Sleep",
     "signed in": "Message",
     "signed out": "Message",
+    "garden": "Activity",
 }
 CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
 
@@ -23,6 +24,7 @@ CANONICAL_FAMLY_TYPES = [
     "sleep",
     "signed in",
     "signed out",
+    "garden",
     "ill",
 ]
 
@@ -37,6 +39,7 @@ FALLBACK_KEYWORDS = {
     "sleep": "sleep",
     "signed in": "signed in",
     "signed out": "signed out",
+    "garden": "garden",
     "sick": "ill",
     "ill": "ill",
 }
