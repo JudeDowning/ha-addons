@@ -212,6 +212,8 @@ class BabyConnectClient:
                         self._create_diaper_entry(page, entry)
                     elif event_type == "sleep":
                         self._create_sleep_entry(page, entry)
+                    elif event_type == "activity":
+                        self._create_activity_entry(page, entry)
                     elif event_type in {"solid", "meal", "food"}:
                         self._create_solid_entry(page, entry)
                     elif event_type in {"message", "note"}:
@@ -345,6 +347,8 @@ class BabyConnectClient:
             return "solid"
         if base in {"diaper"}:
             return "nappy"
+        if base in {"garden"}:
+            return "activity"
         if base in {"note"}:
             return "message"
         return base
@@ -381,6 +385,13 @@ class BabyConnectClient:
             )
             if message:
                 tokens.extend([self._append_sync_marker(message), message])
+        elif event_type == "activity":
+            activity_text = entry.get("activity_text") or entry.get("message")
+            if activity_text:
+                tokens.extend([activity_text, self._append_sync_marker(activity_text)])
+            note_text = entry.get("note") or self._note_body_from_entry(entry)
+            if note_text:
+                tokens.extend([note_text, self._append_sync_marker(note_text)])
         else:
             note_body = self._note_body_from_entry(entry)
             if note_body:
@@ -819,6 +830,40 @@ class BabyConnectClient:
             logger.warning("BabyConnect: sleep dialog still attached, continuing anyway")
         logger.info("BabyConnect: sleep entry saved")
 
+    def _create_activity_entry(self, page: Page, entry: Dict[str, Any]) -> None:
+        logger.info("BabyConnect: opening activity dialog for entry %s", entry.get("id") or entry.get("summary"))
+        dialog = self._open_entry_dialog(page, "showActivityDlg")
+        self._fill_date_field(dialog, entry)
+        self._fill_time_fields(dialog, entry, use_start_for_end=True)
+
+        activity_type = str(entry.get("activity_type") or "702")
+        if activity_type.isdigit() and dialog.locator(f"#input{activity_type}").count():
+            dialog.locator(f"#input{activity_type}").check(force=True)
+
+        activity_text = (
+            entry.get("activity_text")
+            or entry.get("message")
+            or f"{entry.get('child_name') or 'Child'} is playing in the garden"
+        )
+        if dialog.locator("#txt").count():
+            dialog.locator("#txt").fill(activity_text)
+
+        note_body = entry.get("note") or self._note_body_from_entry(entry) or "Garden"
+        self._ensure_note_visible(dialog)
+        if dialog.locator("#notetxt").count():
+            dialog.locator("#notetxt").fill(self._append_sync_marker(note_body))
+
+        dialog.locator(".defaultDlgButtonSave").click()
+        try:
+            dialog.wait_for(state="hidden", timeout=10000)
+        except PlaywrightTimeoutError:
+            logger.warning("BabyConnect: activity dialog did not hide after save, continuing anyway")
+        try:
+            dialog.wait_for(state="detached", timeout=5000)
+        except PlaywrightTimeoutError:
+            logger.warning("BabyConnect: activity dialog still attached, continuing anyway")
+        logger.info("BabyConnect: activity entry saved")
+
     def _create_solid_entry(self, page: Page, entry: Dict[str, Any]) -> None:
         logger.info("BabyConnect: opening solid dialog for entry %s", entry.get("id") or entry.get("summary"))
         dialog = self._open_entry_dialog(page, "showEatDlg")
@@ -914,6 +959,8 @@ class BabyConnectClient:
             return "bottle"
         if "sleep_v2" in s:
             return "sleep"
+        if "activity_v2" in s:
+            return "activity"
         if "medicine_v2" in s:
             return "medicine"
         if "temperature_v2" in s:
@@ -939,6 +986,8 @@ class BabyConnectClient:
             return "bottle"
         if "bath" in t:
             return "bath"
+        if "playing alone" in t or "playing with others" in t or "playpen" in t or "tummy time" in t or "garden" in t:
+            return "activity"
         if "signed in" in t or "signed out" in t or "message" in t:
             return "message"
 
@@ -1155,7 +1204,7 @@ class BabyConnectClient:
         elif etype in {"nappy", "diaper"}:
             if not add_note_lines():
                 add_line(title_text)
-        elif etype in {"solid", "meal", "food", "bottle", "temperature", "medicine", "potty"}:
+        elif etype in {"solid", "meal", "food", "bottle", "temperature", "medicine", "potty", "activity"}:
             if not add_note_lines():
                 add_line(title_text)
         elif etype in {"message", "note"}:

@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.12
+- Added support for syncing Famly `Garden` entries into Baby Connect `Activity` as `Playing with Others`, including note/text mapping and verification support.
+
 ## 1.0.11
 - Added persistent sync claims and shared sync locking to reduce duplicate Baby Connect posts across overlapping or repeated sync attempts.
 - Changed Baby Connect write confirmation to rescrape the feed and only treat entries as synced once they are visible on the page.

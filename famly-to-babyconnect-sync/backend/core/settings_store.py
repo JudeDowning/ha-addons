@@ -10,6 +10,7 @@ SYNC_INCLUDE_DEFAULT = [
     "solid",
     "nappy",
     "sleep",
+    "activity",
     "message",
     "bottle",
     "medicine",

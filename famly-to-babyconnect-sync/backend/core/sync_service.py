@@ -241,6 +241,8 @@ def get_missing_famly_event_ids() -> List[int]:
             return "solid"
         if base in ("nappy change", "diaper"):
             return "nappy"
+        if base in ("garden", "activity"):
+            return "activity"
         if base in ("signed in", "sign in", "signed out", "sign out"):
             return "message"
         return base or ""
@@ -407,6 +409,7 @@ def _event_to_baby_payload(event: Event) -> Dict[str, Any] | None:
     base = {
         "event_id": event.id,
         "fingerprint": event.fingerprint,
+        "child_name": event.child_name,
         "event_type": event.event_type.lower(),
         "start_time_utc": event.start_time_utc.isoformat(),
         "end_time_utc": event.end_time_utc.isoformat() if event.end_time_utc else None,
@@ -422,6 +425,13 @@ def _event_to_baby_payload(event: Event) -> Dict[str, Any] | None:
         return base
     if "sleep" in etype:
         base["event_type"] = "sleep"
+        return base
+    if "garden" in etype or "activity" in etype:
+        base["event_type"] = "activity"
+        base["activity_type"] = "702"
+        base["activity_text"] = f"{event.child_name} is playing in the garden"
+        if not base["note"]:
+            base["note"] = "Garden"
         return base
     if any(key in etype for key in ("solid", "meal", "food")):
         base["event_type"] = "solid"
