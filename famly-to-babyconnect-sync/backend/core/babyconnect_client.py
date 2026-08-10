@@ -224,8 +224,10 @@ class BabyConnectClient:
                         if fingerprint:
                             failed_fingerprints.append(fingerprint)
                         continue
+                    if fingerprint:
+                        created_fingerprints.append(fingerprint)
                     pending_verification.append(entry)
-                    set_progress_message("sync", f"Synced entry {idx}/{total_entries}")
+                    set_progress_message("sync", f"Saved entry {idx}/{total_entries}")
                 except Exception:
                     logger.exception("BabyConnect: failed to create entry %s", entry)
                     set_progress_message("sync", f"Failed entry {idx}/{total_entries}")
@@ -237,14 +239,20 @@ class BabyConnectClient:
             browser.close()
 
         verified_fingerprints, unverified_fingerprints = self._verify_created_entries(pending_verification)
-        created_fingerprints.extend(sorted(verified_fingerprints))
-        failed_fingerprints.extend(sorted(unverified_fingerprints))
+        if unverified_fingerprints:
+            logger.warning(
+                "BabyConnect: %d saved entries were not confirmed by verification scrape: %s",
+                len(unverified_fingerprints),
+                sorted(unverified_fingerprints),
+            )
 
         return {
             "status": "ok",
-            "created": len(created_fingerprints),
+            "created": len(list(dict.fromkeys(created_fingerprints))),
             "created_fingerprints": list(dict.fromkeys(created_fingerprints)),
             "failed_fingerprints": list(dict.fromkeys(failed_fingerprints)),
+            "verified_fingerprints": sorted(verified_fingerprints),
+            "unverified_fingerprints": sorted(unverified_fingerprints),
         }
 
     def _verify_created_entries(self, entries: List[Dict[str, Any]]) -> tuple[set[str], set[str]]:
@@ -838,7 +846,22 @@ class BabyConnectClient:
 
         activity_type = str(entry.get("activity_type") or "702")
         if activity_type.isdigit() and dialog.locator(f"#input{activity_type}").count():
-            dialog.locator(f"#input{activity_type}").check(force=True)
+            target_selector = f"#input{activity_type}"
+            target = dialog.locator(target_selector)
+            try:
+                target.check()
+            except PlaywrightTimeoutError:
+                label = dialog.locator(f"label[for='{target_selector.lstrip('#')}']")
+                if label.count():
+                    label.first.click()
+                else:
+                    target.check(force=True)
+            except Exception:
+                label = dialog.locator(f"label[for='{target_selector.lstrip('#')}']")
+                if label.count():
+                    label.first.click()
+                else:
+                    target.evaluate("(el) => { el.checked = true; el.dispatchEvent(new Event('change', { bubbles: true })); }")
 
         activity_text = (
             entry.get("activity_text")

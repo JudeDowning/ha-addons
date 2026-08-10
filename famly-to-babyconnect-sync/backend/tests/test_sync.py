@@ -239,3 +239,64 @@ def test_failed_claims_are_retryable(monkeypatch):
     assert missing_after_failure == [2]
     assert second["created"] == 1
     assert _FlakyBabyConnectClient.calls == 2
+
+
+def test_unverified_saved_entries_are_treated_as_synced(monkeypatch):
+    session_factory = _build_test_session()
+
+    with session_factory() as session:
+        session.add(
+            Event(
+                id=3,
+                source_system="famly",
+                fingerprint="famly-fp-3",
+                child_name="Test Child",
+                event_type="activity",
+                start_time_utc=datetime(2026, 8, 10, 9, 51),
+                end_time_utc=datetime(2026, 8, 10, 10, 52),
+                details_json={"raw_text": "Garden", "raw_data": {"detail_lines": ["09:51 - 10:52"]}},
+            )
+        )
+
+    class _OptimisticBabyConnectClient:
+        calls = 0
+
+        def __init__(self, email: str, password: str):
+            self.email = email
+            self.password = password
+
+        def create_entries(self, entries):
+            _OptimisticBabyConnectClient.calls += 1
+            fingerprints = [entry["fingerprint"] for entry in entries]
+            return {
+                "status": "ok",
+                "created": len(entries),
+                "created_fingerprints": fingerprints,
+                "failed_fingerprints": [],
+                "verified_fingerprints": [],
+                "unverified_fingerprints": fingerprints,
+            }
+
+    monkeypatch.setattr(sync_service, "get_session", session_factory)
+    monkeypatch.setattr(
+        sync_service,
+        "get_credentials",
+        lambda service_name: SimpleNamespace(email="test@example.com", password_encrypted="secret"),
+    )
+    monkeypatch.setattr(sync_service, "BabyConnectClient", _OptimisticBabyConnectClient)
+    monkeypatch.setattr(sync_service, "scrape_babyconnect_and_store", lambda days_back=0: [])
+
+    result = sync_service.create_babyconnect_entries([3])
+    missing_ids = sync_service.get_missing_famly_event_ids()
+
+    assert result["created"] == 1
+    assert result["failed"] == 0
+    assert result["unverified"] == 1
+    assert missing_ids == []
+    assert _OptimisticBabyConnectClient.calls == 1
+
+    with session_factory() as session:
+        claims = session.query(SyncClaim).filter(SyncClaim.fingerprint == "famly-fp-3").all()
+
+    assert len(claims) == 1
+    assert claims[0].status == "synced"

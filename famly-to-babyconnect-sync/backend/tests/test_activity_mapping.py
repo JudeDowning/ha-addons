@@ -24,7 +24,7 @@ def test_garden_event_maps_to_babyconnect_activity_payload():
     assert payload["event_type"] == "activity"
     assert payload["activity_type"] == "702"
     assert payload["activity_text"] == "Test Child is playing in the garden"
-    assert payload["note"] == "Garden"
+    assert payload["note"] is None
 
 
 def test_babyconnect_activity_title_is_inferred_as_activity():

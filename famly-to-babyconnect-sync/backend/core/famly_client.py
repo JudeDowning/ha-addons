@@ -46,6 +46,15 @@ CHILD_NAME_SELECTOR = "#personProfile h2.title-test-marker"
 logger = logging.getLogger(__name__)
 
 ProgressCallback = Callable[[str], None]
+IGNORED_DETAIL_TOKENS = {
+    "login",
+    "logout",
+    "restaurant",
+    "hotel",
+    "checkroom",
+    "description",
+    "info",
+}
 
 
 class FamlyClient:
@@ -384,6 +393,28 @@ class FamlyClient:
         content = event_block.query_selector(EVENT_CONTENT_SELECTOR)
         if content:
             return content
+        try:
+            content_handle = event_block.evaluate_handle(
+                """(root) => {
+                    const title =
+                      root.querySelector("[data-e2e-class='event-title']") ||
+                      root.querySelector("p");
+                    if (!title) return null;
+                    const titleText = (title.innerText || "").replace(/\\s+/g, " ").trim();
+                    let node = title.parentElement;
+                    while (node && node !== root) {
+                      const text = (node.innerText || "").replace(/\\s+/g, " ").trim();
+                      if (text && text !== titleText) return node;
+                      node = node.parentElement;
+                    }
+                    return title.parentElement || root;
+                }"""
+            )
+            content = content_handle.as_element()
+            if content:
+                return content
+        except Exception:
+            logger.debug("Famly scrape: failed to resolve modern event content", exc_info=True)
         if self._resolve_event_title(event_block):
             return event_block
         return None
@@ -395,9 +426,11 @@ class FamlyClient:
         return content.query_selector(EVENT_TITLE_FALLBACK_SELECTOR)
 
     def _extract_detail_lines(self, content) -> List[str]:
+        title_el = self._resolve_event_title(content)
+        title_text = title_el.inner_text().strip() if title_el else ""
+
         detail_els = content.query_selector_all(EVENT_DETAIL_LINES_SELECTOR)
-        lines: List[str] = []
-        last_line: Optional[str] = None
+        legacy_lines: List[str] = []
         for el in detail_els:
             if not el:
                 continue
@@ -407,13 +440,42 @@ class FamlyClient:
             except Exception:
                 pass
             text = el.inner_text().strip()
-            if not text:
+            if text:
+                legacy_lines.append(text)
+        if legacy_lines:
+            return self._clean_detail_lines(legacy_lines, title_text)
+
+        try:
+            rendered_text = content.inner_text() or ""
+        except Exception:
+            logger.debug("Famly scrape: failed to read modern detail text", exc_info=True)
+            rendered_text = ""
+
+        lines = [part.strip() for part in rendered_text.splitlines()]
+        return self._clean_detail_lines(lines, title_text)
+
+    def _clean_detail_lines(self, lines: List[str], title_text: str = "") -> List[str]:
+        cleaned: List[str] = []
+        last_line: Optional[str] = None
+        title_slug = re.sub(r"\s+", " ", (title_text or "").strip()).lower()
+
+        for raw_line in lines:
+            line = re.sub(r"\s+", " ", (raw_line or "").strip())
+            if not line:
                 continue
-            if text == last_line:
+
+            lower = line.lower()
+            if title_slug and lower == title_slug:
                 continue
-            lines.append(text)
-            last_line = text
-        return lines
+            if lower in IGNORED_DETAIL_TOKENS:
+                continue
+            if lower == last_line:
+                continue
+
+            cleaned.append(line)
+            last_line = lower
+
+        return cleaned
 
     def _split_entry_blocks(self, lines: List[str]) -> List[List[str]]:
         blocks: List[List[str]] = []

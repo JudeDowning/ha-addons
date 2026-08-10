@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.13
+- Fixed the Famly scraper for the latest Famly activity markup so event times and details are extracted again for meals, nappies, sleep, sign-in/sign-out, and Garden entries.
+- Updated Baby Connect activity posting so Garden entries use only `[Sync]` in the note field.
+- Changed Baby Connect sync handling to treat a successful save click as synced immediately, while keeping the follow-up re-scrape as reconciliation/reporting rather than a hard failure gate.
+- Improved Baby Connect activity automation to handle the current hidden activity-type control when selecting `Playing with Others`.
+
 ## 1.0.12
 - Added support for syncing Famly `Garden` entries into Baby Connect `Activity` as `Playing with Others`, including note/text mapping and verification support.
 

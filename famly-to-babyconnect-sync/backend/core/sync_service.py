@@ -430,8 +430,7 @@ def _event_to_baby_payload(event: Event) -> Dict[str, Any] | None:
         base["event_type"] = "activity"
         base["activity_type"] = "702"
         base["activity_text"] = f"{event.child_name} is playing in the garden"
-        if not base["note"]:
-            base["note"] = "Garden"
+        base["note"] = None
         return base
     if any(key in etype for key in ("solid", "meal", "food")):
         base["event_type"] = "solid"
@@ -495,6 +494,7 @@ def create_babyconnect_entries(event_ids: List[int]) -> Dict[str, Any]:
 
     created_fingerprints = set(creation_result.get("created_fingerprints", []))
     failed_fingerprints = set(creation_result.get("failed_fingerprints", []))
+    unverified_fingerprints = set(creation_result.get("unverified_fingerprints", []))
     unresolved_fingerprints = claimed_fingerprints - created_fingerprints - failed_fingerprints
     if unresolved_fingerprints:
         failed_fingerprints.update(unresolved_fingerprints)
@@ -533,6 +533,7 @@ def create_babyconnect_entries(event_ids: List[int]) -> Dict[str, Any]:
         "status": "ok",
         "created": len(created_fingerprints),
         "failed": len(failed_fingerprints),
+        "unverified": len(unverified_fingerprints),
         "refreshed": refreshed_count,
         "synced_event_ids": created_event_ids,
         "failed_event_ids": failed_event_ids,
