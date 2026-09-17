@@ -37,6 +37,7 @@ EVENT_CONTENT_SELECTOR = "[data-e2e-class='event-content']"
 EVENT_TITLE_SELECTOR = "[data-e2e-class='event-title']"
 EVENT_DETAIL_LINES_SELECTOR = "small"
 EVENT_TITLE_FALLBACK_SELECTOR = "p"
+MODERN_EVENT_CONTENT_SELECTOR = ":scope > div:nth-child(2)"
 
 # Child selection
 GENERIC_CHILD_LINK_SELECTOR = "a[data-e2e-id^='NavigationGroup-Child-']"
@@ -123,18 +124,12 @@ class FamlyClient:
             _report("Loading child activity feed...")
             logger.info("Famly scrape: waiting for child activity feed to load")
             page.wait_for_load_state("domcontentloaded")
-            page.wait_for_selector(CHILD_NAME_SELECTOR, timeout=10000)
             page.wait_for_selector(DAY_SELECTOR, timeout=10000)
 
             # 4b. Read child name from the profile header
-            child_full_name = ""
-            child_first_name = ""
+            child_full_name = self._read_child_name(page)
+            child_first_name = child_full_name.split()[0] if child_full_name else ""
             try:
-                child_name_el = page.query_selector(CHILD_NAME_SELECTOR)
-                if child_name_el:
-                    child_full_name = child_name_el.inner_text().strip()
-                    if child_full_name:
-                        child_first_name = child_full_name.split()[0]
                 logger.info("Famly scrape: detected child name %s", child_full_name or "Unknown")
             except Exception:
                 # Non-fatal - we'll just leave child name blank if this fails
@@ -317,11 +312,14 @@ class FamlyClient:
         """
         Confirm that a child profile element is rendered, indicating the dashboard loaded.
         """
-        try:
-            page.wait_for_selector(CHILD_NAME_SELECTOR, timeout=timeout)
-            return True
-        except PlaywrightTimeoutError:
-            return False
+        selectors = [PROFILE_CHILD_LINK_SELECTOR, GENERIC_CHILD_LINK_SELECTOR, DAY_SELECTOR]
+        for selector in selectors:
+            try:
+                page.wait_for_selector(selector, timeout=timeout)
+                return True
+            except PlaywrightTimeoutError:
+                continue
+        return False
 
     def _select_child(self, page) -> None:
         selectors_to_try = []
@@ -393,6 +391,9 @@ class FamlyClient:
         content = event_block.query_selector(EVENT_CONTENT_SELECTOR)
         if content:
             return content
+        content = event_block.query_selector(MODERN_EVENT_CONTENT_SELECTOR)
+        if content:
+            return content
         try:
             content_handle = event_block.evaluate_handle(
                 """(root) => {
@@ -424,6 +425,40 @@ class FamlyClient:
         if title_el:
             return title_el
         return content.query_selector(EVENT_TITLE_FALLBACK_SELECTOR)
+
+    def _read_child_name(self, page) -> str:
+        legacy_el = page.query_selector(CHILD_NAME_SELECTOR)
+        if legacy_el:
+            return legacy_el.inner_text().strip()
+
+        try:
+            name = page.evaluate(
+                """() => {
+                    const invalid = /^(your browser is out-of-date|photos?\\s*\\(|\\d+$)/i;
+                    const candidates = Array.from(document.querySelectorAll("h1, h2"));
+                    for (const heading of candidates) {
+                        const text = (heading.innerText || "").replace(/\\s+/g, " ").trim();
+                        if (!text || invalid.test(text) || !/[A-Za-z]/.test(text)) continue;
+
+                        const parentText = (heading.parentElement?.innerText || "")
+                          .replace(/\\s+/g, " ")
+                          .trim()
+                          .toLowerCase();
+                        if (
+                          parentText.includes("year") ||
+                          parentText.includes("month") ||
+                          parentText.includes("room")
+                        ) {
+                          return text;
+                        }
+                    }
+                    return "";
+                }"""
+            )
+            return (name or "").strip()
+        except Exception:
+            logger.debug("Famly scrape: failed to resolve modern child name", exc_info=True)
+            return ""
 
     def _extract_detail_lines(self, content) -> List[str]:
         title_el = self._resolve_event_title(content)

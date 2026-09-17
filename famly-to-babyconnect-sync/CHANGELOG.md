@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.14
+- Fixed the Famly scraper after Famly removed the activity feed `data-e2e-class` markers and changed the child profile header markup.
+- Added current-markup fallbacks for child name detection, dashboard readiness, and event content extraction while keeping the legacy selectors.
+
 ## 1.0.13
 - Fixed the Famly scraper for the latest Famly activity markup so event times and details are extracted again for meals, nappies, sleep, sign-in/sign-out, and Garden entries.
 - Updated Baby Connect activity posting so Garden entries use only `[Sync]` in the note field.
