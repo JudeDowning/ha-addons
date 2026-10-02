@@ -59,10 +59,10 @@ def homeassistant_status():
 @router.post("/homeassistant/run")
 def homeassistant_run(
     days_back: int = Query(
-        1,
+        0,
         ge=0,
         le=7,
-        description="How many previous days of Famly history to scrape (defaults to last day).",
+        description="Additional Famly entry days to include: 0 means the last day with entries, 1 means the last 2 entry days.",
     )
 ):
     """

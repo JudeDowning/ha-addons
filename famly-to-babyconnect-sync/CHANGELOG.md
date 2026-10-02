@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.15
+- Updated the README.md to include documentation on calling a sync via rest command
+
 ## 1.0.14
 - Fixed the Famly scraper after Famly removed the activity feed `data-e2e-class` markers and changed the child profile header markup.
 - Added current-markup fallbacks for child name detection, dashboard readiness, and event content extraction while keeping the legacy selectors.

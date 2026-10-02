@@ -93,6 +93,14 @@ Then open:
 
 ### Example `rest_command` entries
 
+The dashboard's **Scrape + Sync All** button calls `POST /api/homeassistant/run?days_back=0` when **Last day with entries** is selected. You can call the same endpoint from an automation; no dashboard needs to be open. `days_back=0` selects the latest Famly day containing entries (not necessarily today); `1` selects the last two entry days, and so on, up to `7`.
+
+For Home Assistant OS/Supervised, use the add-on's internal hostname and port `8000`. Find the full add-on ID in the URL of its Home Assistant add-on page, then replace underscores with hyphens. For example, `local_famly-to-babyconnect-sync` becomes `local-famly-to-babyconnect-sync`; repository installations use a repository hash instead of `local`. This uses the [internal add-on network](https://developers.home-assistant.io/docs/apps/communication/) and requires no published host port.
+
+Replace `ADDON_HOST:ADDON_PORT` below with that hostname and `8000`. For calls from another machine, assign a host port to `8000/tcp` in the add-on's Network settings, restart the add-on, and use your Home Assistant host's IP and the assigned port. Direct API access is unauthenticated, so keep it on a trusted network or behind an authenticated proxy. These are direct add-on requests, not Supervisor API calls: no `SUPERVISOR_TOKEN` header is needed.
+
+Add these entries under `rest_command:` in Home Assistant's `configuration.yaml` (merge with any existing section). Reload RESTful commands or restart Home Assistant after saving. The combined run waits for scraping and syncing to finish, so its timeout allows up to ten minutes; adjust it if your runs take longer. A timeout does not cancel a run, and overlapping sync requests return HTTP `409`.
+
 ```yaml
 rest_command:
   famly_scrape:
@@ -108,10 +116,12 @@ rest_command:
     method: POST
 
   nursery_sync_last_day:
-    url: "http://ADDON_HOST:ADDON_PORT/api/homeassistant/run"
+    url: "http://ADDON_HOST:ADDON_PORT/api/homeassistant/run?days_back=0"
     method: POST
-    timeout: 120
+    timeout: 600
 ```
+
+You can now select `rest_command.nursery_sync_last_day` as an automation action or run it from Developer Tools → Actions. It uses the saved credentials, sync preferences, ignored events, and duplicate protection, just like the dashboard button. A successful request returns JSON containing `created`, `missing_event_ids`, and `synced_event_ids`; check `failed` for any entries that could not be created.
 
 ### Example nightly automation
 
@@ -124,8 +134,6 @@ automation:
     action:
       - service: rest_command.nursery_sync_last_day
 ```
-
-> For Supervisor calls (including the `rest_command` above), include: `Authorization: Bearer ${SUPERVISOR_TOKEN}`
 
 ### Example sensor for the last sync
 
@@ -142,8 +150,6 @@ sensor:
       - famly_last_scrape_at
       - baby_connect_last_scrape_at
       - progress
-    headers:
-      Authorization: Bearer ${SUPERVISOR_TOKEN}
 ```
 
 The `status` endpoint exposes `last_sync_at`, the most recent Famly/Baby Connect scrapes, and `progress` metadata so you can surface whether a sync is running or idle inside Home Assistant.
